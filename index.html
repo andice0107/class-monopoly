@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>課室大富翁｜Codex 優化版</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;margin:0;background:#FFF6EF;color:#5b5670}
+header{padding:12px 16px;background:#FFD9E3;color:#6b4a5a;display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+header h1{font-size:18px;margin:0 8px 0 0}
+button{cursor:pointer;border:0;border-radius:12px;padding:10px 16px;font-size:15px;font-weight:800}
+button:disabled{opacity:.45;cursor:not-allowed}
+.btn{background:#8FE3A8;color:#114d2a}.btn2{background:#BDE0FE;color:#274060}.btn3{background:#FFD6A5;color:#6b3d10}
+.screen{display:none;padding:16px;max-width:1100px;margin:0 auto}.screen.on{display:block}
+.card{background:#FFFFFF;border:2px solid #FFE0E9;border-radius:18px;padding:16px;margin:12px 0;box-shadow:0 4px 14px rgba(255,180,200,.25)}
+label{display:block;margin:8px 0 4px;font-size:14px;color:#8a7fa8}
+input,select,textarea{width:100%;padding:9px;border-radius:10px;border:2px solid #E9D8FF;background:#FFFDF7;color:#4a4460}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:700px){.row{grid-template-columns:1fr}}
+#game{max-width:none;padding:8px 12px}
+#game #playersBar{max-width:1400px;margin:8px auto}
+#boardWrap{position:relative;width:100%;max-width:1600px;margin:0 auto;aspect-ratio:auto;height:calc(100vh - 190px);background:#EAF7FF;border-radius:20px;overflow:hidden;border:3px solid #FFD1DC;min-height:560px}
+.cell{position:absolute;transform:translate(-50%,-50%);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;padding:4px;text-align:center;border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.12);background:#fff}
+.cell.start{background:#FFE98A;color:#7a5b00}.cell.q{background:#BDE7FF;color:#1d4e89}
+.cell.chance{background:#DFC5FF;color:#4c1d95}.cell.fate{background:#FFC2D4;color:#8a1c3f}
+.cell.cur{background:#fff;border-color:#FF8FAB}
+.arrow{position:absolute;transform:translate(-50%,-50%);font-size:18px;color:#FF8FAB;z-index:2;pointer-events:none}
+.token{line-height:1.1;margin:0 1px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.2))}
+.toks{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;max-width:100%;line-height:1}
+#playersBar{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.pchip{background:#FFFFFF;border:2px solid #FFE0E9;border-radius:14px;padding:10px 14px;min-width:190px;font-size:19px;color:#5b5670;font-weight:700}
+.pchip.cur{border-color:#7AD7A5;box-shadow:0 0 0 3px #B8F1CC}
+.sc{color:#0e7a3d;font-weight:900}.lp{color:#c2410c;font-weight:900}.ava{font-size:28px;vertical-align:middle;line-height:1}
+#drop{border:2px dashed #C8B6FF;border-radius:12px;padding:16px;text-align:center;background:#FFFDF7;color:#6b6390}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal.on{display:flex}
+.box{background:#fff;color:#111827;border-radius:16px;max-width:640px;width:100%;padding:18px;max-height:90vh;overflow:auto}
+.opt{display:block;width:100%;text-align:left;margin:10px 0;padding:14px;border:2px solid #cbd5e1;border-radius:12px;background:#f8fafc;color:#111827;font-size:20px;font-weight:600}
+.opt.sel{border-color:#2563eb;background:#dbeafe}
+#qModal .box{max-width:880px;width:96%;padding:26px 30px}
+#qModal h3{font-size:25px;margin:0 0 6px}
+#qStem{font-size:23px !important;line-height:1.5}
+#qModal .btn,#qModal .btn2{font-size:19px;padding:12px 26px}
+.flip{perspective:800px;text-align:center}
+.flipInner{transition:transform .6s;transform-style:preserve-3d;position:relative;height:170px}
+.flip.go .flipInner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:14px;font-size:20px;font-weight:900;backface-visibility:hidden;padding:12px}
+.front{background:#7c3aed;color:#fff}.back{background:#facc15;color:#231400;transform:rotateY(180deg)}
+table.rank{width:100%;border-collapse:collapse;background:#fff;color:#111;border-radius:10px;overflow:hidden}
+table.rank th,table.rank td{padding:12px 10px;border-bottom:1px solid #e5e7eb;font-size:20px;text-align:left}
+#rank h2{font-size:34px;margin:4px 0 10px}
+#rankTable p{font-size:25px;font-weight:800}
+#rank .btn,#rank .btn2{font-size:20px;padding:13px 26px}
+#rank .card{padding:26px}
+.ruleNote{font-size:19px;background:#FFF3E4;border:2px solid #FFE0B8;border-radius:12px;padding:10px 14px;margin-top:12px;color:#7a6a53;line-height:1.5}
+#orderRules{font-size:16px;background:#FFF3E4;border:2px solid #FFE0B8;border-radius:12px;padding:10px 12px;margin:8px 0;color:#7a6a53;line-height:1.5;text-align:left}
+.small{font-size:12px;color:#9a8fb5}
+.diceBig{font-size:88px;text-align:center;min-height:100px}
+#centerBox{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;background:#FFFDF7;border:3px solid #FFD1DC;border-radius:18px;padding:16px 22px;min-width:300px;max-width:38%;z-index:5;box-shadow:0 6px 18px rgba(255,150,180,.3);color:#5b5670;font-size:19px}
+#centerBox .btn{font-size:20px;padding:12px 26px}
+#turnInfo{font-size:21px;font-weight:800;margin-bottom:6px}
+#msg{min-height:24px;margin-top:8px;font-size:17px}
+.hint{background:#FFF3E4;border:2px solid #FFE0B8;border-radius:10px;padding:10px;font-size:13px;color:#7a6a53;white-space:pre-wrap}
+#timerBar{font-size:24px;font-weight:900;color:#c2416b;background:#fff;border:3px solid #FFD1DC;border-radius:999px;padding:6px 20px;margin-left:auto;white-space:nowrap}
+#orderList{font-size:25px !important;font-weight:800;min-height:110px !important;line-height:1.8;color:#4a4460}
+#orderModal h3{font-size:27px}
+#orderModal .btn{font-size:21px;padding:13px 30px}
+#resultBanner{display:none;position:absolute;right:11.5%;top:50%;transform:translateY(-50%);width:20.5%;z-index:6;text-align:center;font-weight:900;padding:12px 14px;border-radius:16px;line-height:1.5;box-shadow:0 8px 22px rgba(0,0,0,.15);word-break:break-word}
+#resultBanner.show{display:block;animation:pop2 .45s}
+#qReview{display:none;position:absolute;left:11.5%;top:50%;transform:translateY(-50%);width:20.5%;max-height:78%;overflow:auto;z-index:6;background:#FFFDF7;border:3px solid #C8B6FF;border-radius:16px;padding:12px 14px;box-shadow:0 8px 22px rgba(0,0,0,.12);color:#4a4460}
+#qReview.show{display:block;animation:pop2 .45s}
+.rvHead{font-size:16px;font-weight:900;color:#8a7fa8;margin-bottom:6px}
+.rvStem{font-size:19px;font-weight:800;line-height:1.5;margin-bottom:8px}
+.rvOpt{font-size:17px;line-height:1.45;margin:5px 0}
+#resultBanner.ok{background:#D9F7E3;border:4px solid #35b36b;color:#0d5c2f}
+#resultBanner.bad{background:#FFE0E6;border:4px solid #e0507a;color:#8a1c3f}
+@media(max-width:900px){#resultBanner{right:10.5%;width:17%}#qReview{left:10.5%;width:17%}.rvStem{font-size:16px}.rvOpt{font-size:14px}#centerBox{min-width:200px;max-width:40%;font-size:16px}#turnInfo{font-size:17px}.diceBig{font-size:64px;min-height:76px}}
+@keyframes pop2{0%{transform:scale(.7)}55%{transform:scale(1.06)}100%{transform:scale(1)}}
+#qTimer{font-size:23px;font-weight:900;color:#c2416b;min-height:32px}
+
+/* Codex visual edition: self-contained, system fonts, no remote assets. */
+:root{--ink:#24364a;--muted:#596b7c;--green:#08734d;--line:#d7e2e6;--shadow:0 6px 0 #26364a0b,0 12px 30px #2440520a}
+body{background:#f4f6ee;color:var(--ink);background-image:radial-gradient(#a7b9b729 1px,transparent 1px);background-size:20px 20px;font-weight:500}
+header{background:#fffdf4;border-bottom:2px solid #dce5d8;padding:10px 20px;gap:8px;box-shadow:0 3px 18px #203d4010}
+header h1{font-size:24px;font-weight:900;margin-right:auto;letter-spacing:-.7px}
+.brandTag{display:block;font-size:12px;letter-spacing:2px;margin:3px 0 0 34px;color:#597266}
+button{font-family:inherit;transition:transform .15s,box-shadow .15s,background .15s;min-height:44px;border:1px solid #173d3a15;box-shadow:0 3px 0 #284d3e20;line-height:1.4}
+button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 5px 0 #284d3e25}
+button:active:not(:disabled){transform:translateY(1px);box-shadow:none}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #0d7e79;outline-offset:3px}
+.btn{background:#b4ebce;color:#114c37}.btn2{background:#e2eef5;color:#284a65}.btn3{background:#ffe1ae;color:#694617}
+header button{font-size:14px;padding:8px 12px}
+.screen{max-width:1600px;padding:18px 22px}
+#setup.on{display:grid;grid-template-columns:1.06fr 1fr;gap:18px;align-items:stretch}
+.setupHero{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 26px;background:#dceee4;border:1px solid #bbd8c9;border-radius:22px;box-shadow:var(--shadow)}
+.eyebrow{font-size:12px;letter-spacing:2px;font-weight:900;color:#386555}.setupHero h2{font-size:clamp(27px,3vw,40px);letter-spacing:-1px;margin:7px 0}.setupHero p{margin:0;font-size:17px;color:#395b50}
+.heroSteps{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.heroSteps span{background:#fffdf3;border:1px solid #bcd2bf;border-radius:12px;padding:15px;font-size:15px;font-weight:800}
+.card{border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);margin:0;padding:22px;background:#fffffc}
+#setup>.card:last-child{grid-column:1/-1;display:grid;grid-template-columns:270px 1fr;align-items:center;gap:22px;background:#fff6dc}
+.card h2{font-size:22px;margin:0 0 18px;line-height:1.4;display:flex;align-items:center;gap:10px}.stepLabel{display:inline-grid;place-items:center;background:#e9e3fb;color:#59438a;border-radius:10px;font-size:16px;width:38px;height:38px;flex:none}
+label{font-size:15px;font-weight:800;color:#435367;margin:10px 0 6px}input,select,textarea{font-family:inherit;font-size:16px;border:1.5px solid #cfdbdf;background:#f7faf9;color:var(--ink);padding:10px 12px;min-height:44px}textarea{line-height:1.6;resize:vertical}.row{gap:16px}
+.small{font-size:14px;line-height:1.65;color:#596878}.hint{font-size:15px;background:#f2edff;border:1px solid #d9cfee;line-height:1.65;color:#594477;padding:16px}
+#drop{background:#f0f8f4;border:2px dashed #89bba3;padding:16px;color:#355d4b;line-height:1.8;font-size:16px}#drop.dragging{background:#d0efde;border-color:#08734d}#qStatus{padding:10px 0;font-weight:800;color:#08734d}#chanceInfo{background:#eef5f8;padding:8px 12px;border-radius:9px;margin:12px 0 2px;color:#37556e}
+#game{padding:10px 14px;max-width:none}#game #playersBar{max-width:none;margin:0 0 12px;display:grid;grid-template-columns:repeat(var(--players,2),minmax(0,1fr));gap:10px}
+.pchip{position:relative;min-width:0;padding:10px 14px;border:2px solid #d5dfe1;background:#fffffc;border-radius:15px;font-size:19px;line-height:1.5;box-shadow:0 3px 0 #24364a0a;overflow-wrap:anywhere}
+.pchip.cur{background:#e4f6e9;border-color:#338461;box-shadow:0 3px 0 #33846140}.pchip.cur:after{content:'本回合';position:absolute;right:8px;top:8px;background:#236649;color:white;border-radius:6px;padding:2px 6px;font-size:11px}.pchipName{padding-right:46px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pchipStats{display:flex;justify-content:space-between;gap:6px}.sc{color:#087342}.lp{color:#ad480a}.lapTrack{height:5px;background:#d6e5dc;border-radius:9px;margin-top:6px;overflow:hidden}.lapTrack i{display:block;height:100%;background:#3d9271;border-radius:9px;transition:width .4s}
+#boardWrap{max-width:none;min-height:510px;height:calc(100dvh - 200px);border:2px solid #c1d4cf;border-radius:24px;background:#e9f1e8;box-shadow:inset 0 0 0 7px #f7faf1;overflow:hidden}
+.cell{padding:5px 3px;border-radius:13px;border:2px solid #fff;box-shadow:0 4px 0 #52635420;overflow:hidden;color:#20394b;gap:3px;transition:background .2s,border-color .2s;line-height:1.15}
+.cell.start{background:#ffe2a0;color:#6a4610}.cell.q{background:#d4eaf7;color:#254d6a}.cell.chance{background:#e4d6f6;color:#63438b}.cell.fate{background:#f9d8de;color:#853d53}
+.cell.cur{border:3px solid #27785d;box-shadow:0 0 0 3px #ffffff,0 6px 0 #27785d24;background:#f7fff7;z-index:3;animation:tileArrive .3s ease-out}.cellLabel{font-size:inherit;white-space:nowrap}.cellIndex{font-size:11px;font-weight:800;opacity:.7;letter-spacing:1px}.toks{flex-wrap:nowrap;width:100%;min-height:22px;gap:0}.token{margin:0;display:inline-block;min-width:0;text-align:center;line-height:1.1;filter:none}.arrow{font-size:14px;color:#5c8a78;z-index:1}
+#innerStage{position:absolute;display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,.94fr) minmax(0,1fr);gap:12px;align-items:stretch;padding:0}
+#qReview,#resultBanner,#centerBox{position:relative;inset:auto;transform:none;width:auto;max-width:none;min-width:0;max-height:none;z-index:1;margin:0;border:1.5px solid #d4dfe0;border-radius:18px;padding:clamp(10px,1.2vw,20px);box-shadow:0 5px 0 #3048500a;overflow:auto;word-break:break-word}
+#qReview,#resultBanner{display:flex;flex-direction:column;background:#fffefa;text-align:left;font-size:17px;line-height:1.5;color:var(--ink)}
+#centerBox{display:flex;flex-direction:column;justify-content:center;align-items:stretch;background:#fff8e9;border:2px solid #ddc89a;color:var(--ink);font-size:19px;overflow:hidden}
+#qReview.show,#resultBanner.show{display:block;animation:panelArrive .4s ease-out}#resultBanner.ok{background:#e0f4e6;color:#0b633d;border:2px solid #4b9970}#resultBanner.bad{background:#ffeaed;color:#91344d;border:2px solid #cb7187}
+.panelEyebrow,.rvHead{font-size:14px;font-weight:900;letter-spacing:1px;color:#53677a;border-bottom:1px solid #dce4e8;padding-bottom:10px;margin-bottom:12px}.panelHero{font-size:clamp(22px,2.1vw,34px);font-weight:900;line-height:1.25;margin:8px 0 14px}.panelIcon{font-size:42px;line-height:1.2}.panelCopy{font-size:17px;font-weight:500;line-height:1.6;margin:5px 0}.panelFooter{margin-top:auto;background:#edf4ee;border-radius:10px;padding:10px;font-size:15px;color:#375a49}.legendLine{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px dashed #d9e0da;font-size:17px}.legendDot{width:12px;height:12px;border-radius:4px;flex:none}.rvStem{font-size:19px;color:#24364a}.rvOpt{font-size:17px;padding:5px 8px;border-radius:8px;background:#f1f5f6}.rvOpt.sc{background:#e1f2e6}.rvOpt.lp{background:#ffe5e7;color:#972d43}
+#turnInfo{font-size:21px;line-height:1.55;overflow-wrap:anywhere}.turnEyebrow{font-size:13px;letter-spacing:2px;color:#796847;font-weight:900;margin-bottom:12px}.diceBig{display:grid;place-items:center;align-self:center;width:clamp(100px,10vw,150px);height:clamp(100px,10vw,150px);min-height:0;font-size:clamp(74px,7vw,108px);line-height:1;background:white;border:2px solid #eadcb9;border-radius:24px;box-shadow:0 7px 0 #b89c5b24;margin:18px 0 22px;color:#315747}
+.diceBig.rolling{animation:diceRoll .16s ease-in-out infinite alternate}#centerBox .btn{font-size:22px;min-height:58px;padding:12px;width:100%;background:#256e51;color:#fff;border-radius:14px;box-shadow:0 5px 0 #154733}#centerBox .btn:disabled{background:#73877b;box-shadow:0 3px 0 #526259}
+#msg{font-size:17px;line-height:1.5;min-height:52px;margin-top:16px;color:#586647}.boardRule{font-size:14px;border-top:1px solid #e2d6b7;padding-top:12px;margin-top:8px;line-height:1.5;color:#756441}
+#timerBar{margin-left:0;font-size:24px;color:#874529;border:2px solid #e2c7a3;background:#fff2d9;padding:6px 16px}
+#timerBar:empty{display:none}.turnName{font-size:25px;line-height:1.35}.turnStats{display:flex;justify-content:center;gap:16px;margin-top:8px;font-size:21px}
+.cell.compact{padding:2px;gap:2px}.cell.compact .cellIndex{display:none}.cell.compact .toks{min-height:18px}
+.token{flex:1 1 0;width:0}.cellLabel{max-width:100%}
+#resultBanner.show,#qReview.show{display:flex;flex-direction:column}#resultBanner.show{text-align:center}.resultMark{font-size:clamp(52px,6vw,92px);line-height:1.05;font-weight:900;margin:8px 0}.resultTitle{font-size:clamp(25px,2.6vw,38px);font-weight:900;margin-bottom:14px}.resultDescription{font-size:clamp(19px,1.6vw,24px);line-height:1.6}.resultFoot,.reviewFoot{margin-top:auto;border-top:1px solid #628a7133;padding-top:12px;font-size:17px;font-weight:600}.resultFoot{margin-top:20px}.reviewFoot{color:#5d7068}.rvOpt{flex-shrink:0}
+.modal{background:#162b3ab3;backdrop-filter:blur(5px);padding:16px}.box{border:2px solid #e6e9dd;border-radius:24px;padding:26px;box-shadow:0 20px 80px #0c203e44;animation:panelArrive .25s ease-out;color:var(--ink);max-height:calc(100dvh - 32px)}
+#qModal .box{width:100%;max-width:880px;padding:24px 28px;background:#fffef8}#qModal h3{display:inline-block;font-size:23px;color:#355e78;background:#e2eff9;border-radius:9px;padding:7px 12px;margin:0 0 8px}#qTimer{float:right;font-size:23px;padding:7px 0}#qStem{clear:both;font-size:23px!important;line-height:1.45;margin:12px 0 18px!important}#qOpts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.opt{margin:0;min-height:70px;font-size:20px;line-height:1.45;border:2px solid #d4dfe3;background:#f5f8fa;padding:16px;box-shadow:0 3px 0 #d9e1e5}.opt.sel{border-color:#1b7c65;background:#d9f0e5;box-shadow:0 3px 0 #1b7c65;color:#145a44}.opt.sel:after{content:' ✓';font-weight:900}#qModal .btn{background:#246d50;color:#fff}#qModal .box>div:last-child{justify-content:flex-end;margin-top:20px!important}
+.flipInner{height:230px}.face{border:3px solid #ffffff80;font-size:30px;border-radius:18px;padding:24px}.front{background:repeating-linear-gradient(45deg,#b8a1d7,#b8a1d7 14px,#c5b3e0 14px,#c5b3e0 28px);color:#362450}.back{background:#ffe4a2;color:#61420b}#cfTitle{font-size:28px;margin:0 0 20px}#cfBtn{font-size:21px;padding:12px 32px}#orderList{background:#eef6f0;padding:18px;border-radius:15px;color:#284b3d;line-height:1.7}#orderRules{font-size:17px}#rank{max-width:1150px;margin-top:20px}#rank .card{background:#fffef7}table.rank th{background:#e4eee6;color:#3d6050}table.rank tr:nth-child(2){background:#fff0c8;font-weight:900}.rank td{color:#273e47}.ruleNote{color:#624d24;border:1px solid #e5d19f;background:#fff4d5}
+@keyframes tileArrive{from{filter:brightness(1.2)}to{filter:brightness(1)}}@keyframes panelArrive{from{opacity:0;translate:0 8px;scale:.97}to{opacity:1;translate:0;scale:1}}@keyframes diceRoll{from{rotate:-12deg;translate:-3px -3px}to{rotate:12deg;translate:3px 0}}
+@media(min-width:1600px){#innerStage{gap:20px}.panelCopy,.legendLine{font-size:20px}#qReview .rvStem{font-size:22px}#qReview .rvOpt{font-size:19px}}
+@media(max-width:1050px){header{padding:8px 12px}header h1{font-size:21px}.brandTag{display:none}header button{padding:7px 9px;font-size:13px}#setup.on{gap:12px;padding:14px}.card{padding:16px}.heroSteps span{padding:10px}#setup .row{gap:10px}#setup>.card:nth-child(3) .row{grid-template-columns:1fr}.hint{font-size:14px}#qtext{max-height:230px}.pchip{padding:8px;font-size:19px}.pchip.cur:after{display:none}.pchipName{padding-right:0}#innerStage{gap:8px;grid-template-columns:minmax(0,1fr) minmax(160px,1.08fr) minmax(0,1fr)}#centerBox,#qReview,#resultBanner{padding:10px;border-radius:13px}.panelHero{font-size:23px}.panelFooter{font-size:14px;padding:8px}.panelCopy,.legendLine{font-size:17px}#turnInfo{font-size:19px}#msg{font-size:17px}.boardRule{font-size:13px}#centerBox .btn{font-size:20px}.rvStem{font-size:18px}.rvOpt{font-size:17px}}
+@media(max-width:760px){#setup.on{display:block}.setupHero{margin-bottom:12px;padding:18px}.heroSteps{display:none}#setup>.card{margin-bottom:12px}#setup>.card:last-child{display:block}#setup>.card:last-child .small{margin-top:16px}#game #playersBar{grid-template-columns:repeat(3,minmax(0,1fr))}.pchip{font-size:17px}#boardWrap{min-height:630px}header h1{width:100%}#innerStage{grid-template-columns:minmax(0,1fr) minmax(150px,1fr);grid-template-rows:1fr 1fr}#centerBox{grid-column:2;grid-row:1/3}#qReview{grid-column:1;grid-row:1}#resultBanner{grid-column:1;grid-row:2}.panelIcon{font-size:28px}.panelHero{font-size:20px}.legendLine{padding:5px 0}.panelFooter{margin-top:8px}.panelEyebrow{font-size:13px}#qModal .box{padding:18px}#qOpts{gap:8px}.opt{padding:10px;min-height:60px}#qTimer{float:none}#qModal h3{font-size:20px}}
+@media(max-height:720px) and (min-width:761px){.box{padding:18px}#qModal .box{padding:18px 24px}.opt{padding:10px 14px;min-height:60px}#qStem{margin:8px 0 12px!important}.diceBig{margin:10px auto 14px;width:96px;height:96px;font-size:76px}#msg{margin-top:10px}.boardRule{padding-top:7px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(max-height:820px) and (min-width:761px){#centerBox{padding:10px}.turnEyebrow,.boardRule{display:none}.turnName{font-size:22px}.turnStats{font-size:19px;margin-top:4px}.diceBig{flex:none;width:74px;height:74px;font-size:62px;margin:8px auto 12px}#centerBox .btn{min-height:50px;padding:8px}#msg{min-height:26px;margin-top:8px;font-size:17px}}
+
+/* Genuine six-faced die and numbered wheel; all transforms are driven by the pausable game clock. */
+.diceBig.motionFace{position:relative;perspective:650px;overflow:visible;--cube:clamp(46px,6vw,78px)}
+.diceCube{position:relative;width:var(--cube);height:var(--cube);transform-style:preserve-3d}
+.cubeFace{position:absolute;inset:0;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);gap:8%;padding:16%;border:2px solid #c6d9d1;border-radius:12px;background:#fffef5;backface-visibility:hidden;box-shadow:inset 0 0 12px #bccdc44a}
+.cubeFace.face1{transform:translateZ(calc(var(--cube)/2))}.cubeFace.face2{transform:rotateY(90deg) translateZ(calc(var(--cube)/2))}.cubeFace.face3{transform:rotateY(180deg) translateZ(calc(var(--cube)/2))}.cubeFace.face4{transform:rotateY(-90deg) translateZ(calc(var(--cube)/2))}.cubeFace.face5{transform:rotateX(90deg) translateZ(calc(var(--cube)/2))}.cubeFace.face6{transform:rotateX(-90deg) translateZ(calc(var(--cube)/2))}
+.pip{display:block;border-radius:50%;background:transparent}.pip.visible{background:#255b48;box-shadow:inset 0 1px 2px #15382c55}.face1 .pip.visible{background:#be5875}
+.numberWheel{position:absolute;left:3%;top:3%;width:94%;height:94%;filter:drop-shadow(0 3px 2px #36594533);transform-origin:center}.wheelPointer{position:absolute;left:calc(50% - 9px);top:-1px;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-top:19px solid #b9425e;z-index:2;filter:drop-shadow(0 2px 1px #ffffff)}
+.wheelHub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:27%;height:27%;display:grid;place-items:center;border-radius:50%;background:#fffef7;border:2px solid #94b8a6;font-size:clamp(16px,2vw,25px);font-weight:900;color:#244e3c}
+.travellingToken{position:absolute;z-index:9;pointer-events:none;display:grid;place-items:center;width:38px;height:38px;border:2px solid #27785d;background:#fffef4;border-radius:50%;font-size:28px;line-height:1;box-shadow:0 3px 7px #1a594a44}.travellingToken.backward{border-color:#bd5b77;background:#fff2f5}
+@media(max-height:820px) and (min-width:761px){.diceBig.motionFace{--cube:42px}}
+
+/* Keep the spinner square instead of letting the flex column flatten it. */
+#centerBox[data-roll-mode="spin"]{container-type:size}
+#centerBox[data-roll-mode="spin"] .turnEyebrow{display:none}
+#centerBox[data-roll-mode="spin"] #turnInfo{margin-bottom:0}
+#centerBox[data-roll-mode="spin"] .diceBig{flex:0 0 auto;width:clamp(108px,34cqh,176px);height:clamp(108px,34cqh,176px);min-height:108px;margin:10px auto;border-radius:50%;background:#fffef7}
+#centerBox[data-roll-mode="spin"] .wheelHub{width:43%;height:43%;font-size:clamp(36px,10cqh,52px);font-weight:900;line-height:1;border:3px solid #497f65;box-shadow:0 2px 7px #244e3c25}
+#centerBox[data-roll-mode="spin"] #msg{font-size:20px;font-weight:800;min-height:30px;margin-top:8px;line-height:1.4}
+#centerBox[data-roll-mode="spin"] .boardRule{margin-top:8px;padding-top:8px}
+@media(max-height:820px) and (min-width:761px){#centerBox[data-roll-mode="spin"] .diceBig{width:108px;height:108px;margin:6px auto}#centerBox[data-roll-mode="spin"] #msg{font-size:18px}}
+
+</style>
+</head>
+<body>
+<header>
+<h1>🎲 課室大富翁 <span class="brandTag">一起動腦・一起冒險</span></h1>
+<button class="btn2" onclick="show('setup')">⚙️ 設定</button>
+<button class="btn2" onclick="show('game')">🎮 棋盤</button>
+<button class="btn2" id="pauseBtn" onclick="togglePause()">⏸ 暫停</button>
+<button class="btn2" onclick="backToSetup()">↩ 回到設定頁</button>
+<span id="timerBar"></span>
+</header>
+
+<div id="setup" class="screen on"><section class="setupHero"><div><span class="eyebrow">CLASSROOM MONOPOLY · 課室冒險</span><h2>每一步，都是新挑戰。</h2><p>擲骰前進 × 動腦答題 × 驚喜翻牌</p></div><div class="heroSteps"><span>01 設定隊伍</span><span>02 準備題庫</span><span>03 一起出發 ↗</span></div></section>
+  <div class="card">
+    <h2><span class="stepLabel">01</span> 設定這場冒險</h2>
+    <div class="row">
+      <div><label>玩家 / 組數（1~6）</label><select id="pCount"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>1</option></select></div>
+      <div><label>一圈格數（10~36，含起點）</label><input id="boardSize" type="number" min="10" max="36" value="12"></div>
+    </div>
+    <div class="row">
+      <div><label>機會格數量（0~8）</label><input id="chanceCount" type="number" min="0" max="8" value="1"></div>
+      <div><label>命運格數量（0~8）</label><input id="fateCount" type="number" min="0" max="8" value="1"></div>
+    </div>
+    <div class="row">
+      <div><label>走完幾圈獲勝（1~5）</label><input id="targetLap" type="number" min="1" max="5" value="2"></div>
+      <div><label>擲骰方式</label><select id="diceMode"><option value="dice">🎲 骰子 1~6</option><option value="spin">🎡 數字轉盤 1~6</option></select></div>
+    </div>
+    <div id="chanceInfo" class="small"></div>
+    <div class="row">
+      <div><label>答對加幾分</label><input id="scoreOk" type="number" value="10"></div>
+      <div><label>答錯處罰</label><select id="wrongMode"><option value="none">不加分（不扣）</option><option value="deduct">扣分</option><option value="back">倒退格數</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>每題作答時間</label><select id="qTimeMode"><option value="off">不限時</option><option value="on">限時（時間到自動送出）</option></select></div>
+      <div><label>每題秒數（10~120）</label><input id="qTimeSec" type="number" min="10" max="120" value="30"></div>
+    </div>
+    <div class="row">
+      <div><label>答錯扣分 / 倒退格數</label><input id="wrongVal" type="number" value="5"></div>
+      <div><label>玩家名稱（逗號分隔，可空白）</label><input id="pNames" placeholder="例：第1組,第2組,第3組"></div>
+    </div>
+    <div class="row">
+      <div><label>單局時間限制</label><select id="timeMode"><option value="off">關閉（玩到有人走完圈數）</option><option value="on">開啟（時間到按分數排名）</option></select></div>
+      <div><label>時間（分鐘，1~30）</label><input id="timeMin" type="number" min="1" max="30" value="10"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="stepLabel">02</span> 準備挑戰題庫</h2>
+    <p class="small">支援：① 下方貼上文字 ② 拖拉 / 點選 .txt（Word 另存純文字）③ 有網路時直讀 .docx。PDF 請複製文字貼上。單選＋複選皆可（複選答案連寫如 AC）。選項每次顯示會自動洗牌。</p>
+    <div id="drop">把 .txt / .docx 拖到這裡，或 <button class="btn2" onclick="document.getElementById('file').click()">點我選檔</button><input id="file" type="file" accept=".txt,.docx,.json,.csv" style="display:none"></div>
+    <div class="row">
+      <div><label>題目文字</label><textarea id="qtext" rows="14" placeholder="【題】…&#10;【選】A… B… C… D…&#10;【答】A&#10;---"></textarea></div>
+      <div><label>Word 範本說明（照此做也可）</label><div class="hint">每題三列：
+【題】題幹
+【選】A.xxx B.xxx C.xxx D.xxx（2~6 個選項）
+【答】A 或 AC（複選連寫）
+
+題與題空一行或用 --- 分隔。
+Word 做好後：另存新檔 → 純文字(.txt) → 拖進本工具。
+有網路也可直接拖 .docx 進來自動解析。</div></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn2" onclick="loadSample()">載入範例50題</button>
+      <button class="btn" onclick="parseQText()">解析題目</button>
+      <button class="btn3" onclick="downloadTemplate()">下載txt範本</button>
+    </div>
+    <div id="qStatus" class="small"></div>
+  </div>
+
+  <div class="card">
+    <button class="btn" style="width:100%;font-size:18px" onclick="startGame()">🚀 開始遊戲</button>
+    <div class="small">題目格只定數量不綁題，走到才從題庫抽一題（發牌制：整輪不重複，全出過才重洗）；機會／命運每次隨機翻牌。超過起點算到達，未滿圈數繼續並記圈。可選限時，時間到按分數排名。<b>勝利條件：先走完指定圈數，或是在總時間結束時分數最高的人獲勝喔！</b></div>
+  </div>
+</div>
+
+<div id="game" class="screen">
+  <div id="playersBar"></div>
+  <div id="boardWrap"><div id="qReview"></div><div id="resultBanner"></div><div id="centerBox"><div id="turnInfo"></div><div class="diceBig" id="diceFace">🎲</div><button class="btn" id="rollBtn" onclick="roll()">擲骰子</button><div id="msg" class="small"></div></div></div>
+</div>
+
+<div id="rank" class="screen">
+  <div class="card"><h2>🏆 排行 / 名次</h2><div id="rankTable"></div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="show('game')">回棋盤</button><button class="btn2" onclick="backToSetup()">再玩一局（回設定）</button></div>
+  </div>
+</div>
+
+<div id="qModal" class="modal"><div class="box">
+  <h3 id="qTitle">題目</h3><div id="qTimer"></div><div id="qStem" style="font-weight:700;margin:8px 0"></div><div id="qOpts"></div>
+  <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="submitQ()">送出答案</button><button class="btn2" onclick="closeQ(true)">跳過（不計分）</button></div>
+</div></div>
+
+<div id="cfModal" class="modal"><div class="box flip" id="flipBox">
+  <h3 id="cfTitle">機會</h3>
+  <div class="flipInner"><div class="face front">❓ 點下方翻牌</div><div class="face back" id="cfText">…</div></div>
+  <div style="margin-top:12px"><button class="btn" id="cfBtn" onclick="flipCard()">翻牌</button></div>
+</div></div>
+
+<div id="pauseModal" class="modal"><div class="box" style="text-align:center"><h2>⏸ 已暫停</h2><button class="btn" onclick="togglePause()">繼續</button></div></div>
+
+<div id="orderModal" class="modal"><div class="box" style="text-align:center"><h3>🎲 先抽遊戲順序</h3><div id="orderRules">📏 玩法小提醒：走到題目格會隨機抽一題，答對加分；<b>先走完指定圈數，或是在總時間結束時分數最高的人獲勝喔！</b></div><div id="orderList" style="font-size:17px;min-height:60px;margin:8px 0">按下方按鈕抽出發順序</div><div style="display:flex;gap:8px;justify-content:center"><button class="btn" id="drawBtn" onclick="drawOrder()">開始抽順序</button><button class="btn" id="goBtn" style="display:none" onclick="confirmOrder()">出發！</button></div></div></div>
+
+<script>
+let S={players:[],board:[],size:12,cur:0,over:false,paused:false,scoreOk:10,wrongMode:'none',wrongVal:5,currentQ:null,currentSel:new Set(),currentCF:null,extraTurn:false,targetLap:2,timeOn:false,timeLeft:0,timerId:null,timeUp:false,orderDone:false,qTimeOn:false,qTimeSec:30,qTimeLeft:0,qTimerId:null};
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));let t=a[i];a[i]=a[j];a[j]=t}return a}
+function boardSides(n){let top=Math.max(2,Math.round(n*2/6)),bottom=Math.max(2,Math.round(n*2/6)),right=Math.max(2,Math.round(n/6)),left=n-top-bottom-right;
+while(left<2){if(top>=bottom&&top>2)top--;else if(bottom>2)bottom--;else if(right>2)right--;else break;left=n-top-bottom-right}
+return{top:top,right:right,bottom:bottom,left:left}}
+function cellXY(i,n){let s=boardSides(n),top=s.top,right=s.right,bottom=s.bottom,left=s.left;
+let x0=7,x1=93,y0=11,y1=89;
+if(i<top){return{x:top===1?50:x0+(x1-x0)*i/(top-1),y:y0}}
+i-=top;
+if(i<right){return{x:x1,y:y0+(y1-y0)*(i+1)/(right+1)}}
+i-=right;
+if(i<bottom){return{x:bottom===1?50:x1-(x1-x0)*i/(bottom-1),y:y1}}
+i-=bottom;
+return{x:x0,y:y1-(y1-y0)*(i+1)/(left+1)}}
+function autoCell(n){let wrap=document.getElementById('boardWrap');let W=wrap&&wrap.clientWidth?wrap.clientWidth:1200;let H=wrap&&wrap.clientHeight?wrap.clientHeight:600;let s=boardSides(n);
+let topDx=(86/(s.top-1))/100*W;let sideDy=(78/(Math.max(s.right,s.left)+1))/100*H;
+let w=Math.floor(Math.min(150,topDx-10));let h=Math.floor(Math.min(110,sideDy-10));
+w=Math.max(46,w);h=Math.max(40,h);h=Math.min(h,Math.round(w*0.75));
+let fs=Math.max(11,Math.min(20,Math.round(w/7.5)));return{w:w,h:h,fs:fs}}
+let QUESTIONS=[];
+let CHANCE=[{t:'前進 1 格',moves:1,do:p=>moveExtra(p,1)},{t:'前進 2 格',moves:1,do:p=>moveExtra(p,2)},{t:'前進 3 格',moves:1,do:p=>moveExtra(p,3)},{t:'後退 1 格',moves:1,do:p=>moveExtra(p,-1)},{t:'後退 2 格',moves:1,do:p=>moveExtra(p,-2)},{t:'加 10 分',do:p=>{p.score+=10}},{t:'扣 5 分',do:p=>{p.score=Math.max(0,p.score-5)}},{t:'再擲一次！',do:p=>{S.extraTurn=true}}];
+let FATE=[{t:'後退 1 格（不觸發該格）',moves:1,do:p=>moveExtra(p,-1,true)},{t:'後退 2 格',moves:1,do:p=>moveExtra(p,-2)},{t:'後退 3 格',moves:1,do:p=>moveExtra(p,-3)},{t:'前進 1 格',moves:1,do:p=>moveExtra(p,1)},{t:'前進 2 格',moves:1,do:p=>moveExtra(p,2)},{t:'扣 10 分',do:p=>{p.score=Math.max(0,p.score-10)}},{t:'加 15 分',do:p=>{p.score+=15}},{t:'加 5 分',do:p=>{p.score+=5}}];
+const EMO_POOL=['🐶','🐱','🐰','🦊','🐼','🐨','🐯','🦁','🐸','🐵','🐔','🐧','🦄','🦦','🐢','🐳','🦩','🐬','🦖','🦉'];
+function show(id){document.querySelectorAll('.screen').forEach(e=>e.classList.remove('on'));document.getElementById(id).classList.add('on')}
+function getCounts(){let n=Math.min(36,Math.max(10,+document.getElementById('boardSize').value||12));let c=Math.min(8,Math.max(0,+document.getElementById('chanceCount').value||0));let f=Math.min(8,Math.max(0,+document.getElementById('fateCount').value||0));if(c+f>n-1){c=Math.max(0,n-1-f)}return[n,c,f]}
+function updateChanceInfo(){let r=getCounts();document.getElementById('chanceInfo').textContent='此圈'+r[0]+'格 → 機會'+r[1]+'、命運'+r[2]+'、題目'+(r[0]-r[1]-r[2]-1)+'（含起點1格，題庫不足會循環、過多會隨機抽）'}
+document.getElementById('boardSize').addEventListener('input',updateChanceInfo);
+document.getElementById('chanceCount').addEventListener('input',updateChanceInfo);
+document.getElementById('fateCount').addEventListener('input',updateChanceInfo);
+updateChanceInfo();
+function loadSample(){document.getElementById('qtext').value='【題】4個萬、8個千、5個百、3個十和7個一合起來是多少？\n【選】A.48537 B.73584 C.35847 D.74853\n【答】A\n---\n【題】摩托車售價「九萬三千七百九十八」元是？\n【選】A.93798 B.89937 C.37989 D.93978\n【答】A\n---\n【題】下面哪些是5的倍數？（複選）\n【選】A.15 B.22 C.30 D.41\n【答】AC\n---\n【題】7×8＝？\n【選】A.54 B.56 C.63 D.48\n【答】B\n---\n【題】下面哪些是偶數？（複選）\n【選】A.12 B.35 C.40 D.57\n【答】AC\n---\n【題】過馬路時看到行人紅燈，應該怎麼做？\n【選】A.停下來等綠燈 B.沒車就快跑過去 C.邊看手機邊走 D.直接衝過去\n【答】A\n---\n【題】教室裡遇到地震，哪些做法是對的？（複選）\n【選】A.躲到桌下抓緊桌腳 B.立刻搭電梯下樓 C.推擠衝出教室 D.遠離窗戶和掉落物\n【答】AD\n---\n【題】哪些時候一定要把手洗乾淨？（複選）\n【選】A.吃東西前 B.上完廁所後 C.打完球、玩完遊具後 D.都不用洗也沒關係\n【答】ABC\n---\n【題】《論語》「學而時習之」的下一句是什麼？\n【選】A.不亦說乎 B.不亦苦乎 C.不亦遠乎 D.不亦難乎\n【答】A\n---\n【題】李白《靜夜思》「舉頭望明月」的下一句是什麼？\n【選】A.低頭思故鄉 B.抬頭看太陽 C.出門找朋友 D.回家吃晚餐\n【答】A\n---\n【題】下面哪些是十二生肖裡有的動物？（複選）\n【選】A.鼠 B.龍 C.貓 D.虎\n【答】ABD\n---\n【題】1小時等於幾分鐘？\n【選】A.60 B.100 C.90 D.30\n【答】A\n---\n【題】正方形有幾個直角？\n【選】A.3 B.4 C.2 D.5\n【答】B\n---\n【題】端午節有哪些傳統習俗？（複選）\n【選】A.吃粽子 B.划龍舟 C.賞月吃月餅 D.立蛋、掛香包\n【答】ABD\n---\n【題】哪些是節約用水的好做法？（複選）\n【選】A.刷牙時關水龍頭 B.用洗米水澆花 C.一直開著水龍頭玩水 D.抹肥皂時先關水\n【答】ABD\n---\n【題】18顆糖平分給3人，每人分到幾顆？\n【選】A.9 B.6 C.5 D.8\n【答】B';parseQText()}
+function downloadTemplate(){let t='課室大富翁題目範本（最多16題）\n每題三行＋---分隔，複選答案連寫\n\n【題】題幹文字\n【選】A.選項1 B.選項2 C.選項3 D.選項4\n【答】A\n---\n【題】複選範例\n【選】A.15 B.22 C.30 D.41\n【答】AC\n';let b=new Blob([t],{type:'text/plain'});let a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='題目範本.txt';a.click()}
+function parseQText(){let raw=document.getElementById('qtext').value.trim();if(!raw){document.getElementById('qStatus').textContent='請先貼題目或載入範例';return}
+let blocks=raw.split(/---+|\n\s*\n/).map(s=>s.trim()).filter(Boolean);let qs=[];
+for(let b of blocks){let mT=b.match(/【題】([\s\S]*?)(?=【選】|$)/),mO=b.match(/【選】([\s\S]*?)(?=【答】|$)/),mA=b.match(/【答】\s*([A-Fa-f]+)/);if(!mT||!mO||!mA)continue;
+let optStr=mO[1].trim()+' ';let opts=[];let re=/([A-F])[\.、．:：\s]+([^A-F【]+?)(?=(?:\s*[B-F][\.、．:：])|$)/g,m;while((m=re.exec(optStr)))opts.push({k:m[1],v:m[2].trim()});
+if(opts.length<2){let parts=mO[1].trim().split(/\s+/);parts.forEach((p,i)=>opts.push({k:String.fromCharCode(65+i),v:p.replace(/^[A-F][\.、．:：]/,'')}))}
+qs.push({stem:mT[1].trim(),opts:opts,ans:[...mA[1].toUpperCase()]})}
+QUESTIONS=qs.slice(0,200);document.getElementById('qStatus').textContent='已解析 '+QUESTIONS.length+' 題（題庫）'+(QUESTIONS.length?' ✅':' ❌格式不符，請對照範本')}
+async function handleFile(f){if(/\.docx$/i.test(f.name)){try{if(typeof mammoth==='undefined'){await new Promise((res,rej)=>{let s=document.createElement('script');s.src='https://unpkg.com/mammoth/mammoth.browser.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})}let r=await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()});document.getElementById('qtext').value=r.value;parseQText();return}catch(e){alert('讀取docx需網路，失敗時請Word另存成.txt再拖入。'+e);return}}
+let t=await f.text();document.getElementById('qtext').value=t;parseQText()}
+let drop=document.getElementById('drop');drop.addEventListener('dragover',e=>{e.preventDefault()});drop.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0])});
+window.addEventListener('resize',function(){if(document.getElementById('game').classList.contains('on')&&S.board.length&&!S.over)renderAll()});
+document.getElementById('file').addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0])});
+function buildBoard(n,c,f){let cells=[{type:'start',label:'起點'}];let rest=n-1;let spec=[];for(let i=0;i<c;i++)spec.push('chance');for(let i=0;i<f;i++)spec.push('fate');
+let idxs=[];for(let k=0;k<spec.length;k++)idxs.push(Math.round((k+0.5)*rest/spec.length));
+let map={};idxs.forEach((p,i)=>map[p]=spec[i%spec.length]);
+let qi=0;for(let i=1;i<=rest;i++){if(map[i])cells.push({type:map[i],label:map[i]==='chance'?'機會':'命運'});else{cells.push({type:'q',label:'Q'+(qi+1)});qi++}}
+return cells}
+function startGame(){parseQText();if(!QUESTIONS.length){alert('請先載入至少1題');show('setup');return}
+let gc=getCounts();let n=gc[0],cc=gc[1],fc=gc[2];
+let needQ=n-cc-fc-1;if(needQ<1){alert('機會＋命運太多，至少要留1格題目');return}
+S.size=n;S.targetLap=+document.getElementById('targetLap').value||2;S.scoreOk=+document.getElementById('scoreOk').value||10;S.wrongMode=document.getElementById('wrongMode').value;S.wrongVal=+document.getElementById('wrongVal').value||5;
+S.timeOn=document.getElementById('timeMode').value==='on';S.timeLeft=Math.min(30,Math.max(1,+document.getElementById('timeMin').value||10))*60;S.timeUp=false;
+S.qTimeOn=document.getElementById('qTimeMode').value==='on';S.qTimeSec=Math.min(120,Math.max(10,+document.getElementById('qTimeSec').value||30));
+let pc=Math.min(6,Math.max(1,+document.getElementById('pCount').value||2));let names=document.getElementById('pNames').value.split(/[,，]/).map(s=>s.trim());
+S.players=[];let poolE=shuffle(EMO_POOL.slice());for(let i=0;i<pc;i++)S.players.push({name:names[i]||('第'+(i+1)+'組'),emo:poolE[i%poolE.length],pos:0,score:0,lap:0});
+S.board=buildBoard(n,cc,fc);
+S.cur=0;S.over=false;S.paused=false;S.orderDone=false;S.clockStarted=false;S.qBag=shuffle(QUESTIONS.map(function(_,i){return i}));document.getElementById('pauseBtn').textContent='⏸ 暫停';
+if(S.timerId){clearInterval(S.timerId);S.timerId=null}
+renderAll();show('game');openOrder()}
+function openOrder(){hideResult();document.getElementById('orderRules').innerHTML='📏 玩法小提醒：走到題目格會隨機抽一題，答對加分；<b>先走完《'+S.targetLap+'》圈，或是在總時間結束時分數最高的人獲勝喔！</b>';document.getElementById('orderList').textContent='按下方按鈕抽出發順序';document.getElementById('drawBtn').style.display='';document.getElementById('goBtn').style.display='none';document.getElementById('orderModal').classList.add('on');document.getElementById('rollBtn').disabled=true}
+function drawOrder(){let btn=document.getElementById('drawBtn');btn.disabled=true;let list=document.getElementById('orderList');let names=S.players.map(function(p){return p.emo+' '+p.name});let t=0;let iv=setInterval(function(){t++;list.textContent=shuffle(names.slice()).join(' → ');if(t>=12){clearInterval(iv);shuffle(S.players);S.cur=0;list.innerHTML=S.players.map(function(p,i){return (i+1)+'. <span class="ava">'+p.emo+'</span> '+p.name}).join('<br>');btn.style.display='none';document.getElementById('goBtn').style.display='';renderAll()}},120)}
+function confirmOrder(){document.getElementById('orderModal').classList.remove('on');document.getElementById('drawBtn').disabled=false;document.getElementById('drawBtn').style.display='';S.orderDone=true;renderAll();updateTurn()}
+function tick(){if(S.over||S.paused)return;S.timeLeft--;if(S.timeLeft<=0){S.timeUp=true;endByTime()}else renderTimer()}
+function renderTimer(){let el=document.getElementById('timerBar');if(!el)return;if(!S.timeOn){el.style.display='none';return}el.style.display='';let m=Math.floor(S.timeLeft/60),s=S.timeLeft%60;el.textContent='⏱ 剩餘 '+m+':'+String(s).padStart(2,'0')}
+function stopTimer(){if(S.timerId){clearInterval(S.timerId);S.timerId=null}}
+function renderAll(){let w=document.getElementById('boardWrap');let c=document.getElementById('centerBox');let rb=document.getElementById('resultBanner');let qv=document.getElementById('qReview');w.innerHTML='';if(qv)w.appendChild(qv);if(rb)w.appendChild(rb);if(c)w.appendChild(c);let sz=autoCell(S.size);
+for(let i=0;i<S.size;i++){let p1=cellXY(i,S.size),p2=cellXY((i+1)%S.size,S.size);let mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;let ang=Math.atan2(p2.y-p1.y,p2.x-p1.x)*180/Math.PI;let ar=document.createElement('div');ar.className='arrow';ar.style.left=mx+'%';ar.style.top=my+'%';ar.style.transform='translate(-50%,-50%) rotate('+ang+'deg)';ar.textContent='➤';w.appendChild(ar)}
+S.board.forEach((cell,i)=>{let p=cellXY(i,S.size);let d=document.createElement('div');d.className='cell '+cell.type+(S.players[S.cur]&&S.players[S.cur].pos===i?' cur':'');d.style.left=p.x+'%';d.style.top=p.y+'%';d.style.width=sz.w+'px';d.style.minHeight=sz.h+'px';d.style.fontSize=sz.fs+'px';
+let tkSize=Math.max(20,Math.min(30,Math.floor((sz.w-16)/3)));
+let toks=S.players.map(p=>p.pos===i?'<span class="token" style="font-size:'+tkSize+'px">'+p.emo+'</span>':'').join('');
+d.innerHTML='<div>'+(i===0?'🏁':cell.type==='q'?'📝':cell.type==='chance'?'❓':'🎁')+' '+cell.label+'</div><div class="toks">'+toks+'</div>';w.appendChild(d)});
+let bar=document.getElementById('playersBar');bar.innerHTML=S.players.map((p,i)=>'<div class="pchip '+(i===S.cur?'cur':'')+'"><span class="ava">'+p.emo+'</span> '+p.name+'<br><span class="sc">分:'+p.score+'</span>｜<span class="lp">圈:'+p.lap+'/'+S.targetLap+'</span></div>').join('')}
+function updateTurn(){if(S.over)return;let p=S.players[S.cur];document.getElementById('turnInfo').innerHTML='輪到：<span class="ava">'+p.emo+'</span> '+p.name+'（<span class="sc">分'+p.score+'</span>／<span class="lp">'+p.lap+'/'+S.targetLap+'圈</span>）';document.getElementById('rollBtn').disabled=false;renderTimer()}
+function roll(){if(S.over||S.paused||!S.orderDone)return;hideResult();if(S.timeOn&&!S.clockStarted){S.clockStarted=true;S.timerId=setInterval(tick,1000);renderTimer()}let v=1+Math.floor(Math.random()*6);let face=document.getElementById('diceFace');
+if(document.getElementById('diceMode').value==='spin'){face.textContent='🎡…';gameDelay(()=>{face.textContent='【'+v+'】';doMove(v)},500)}else{face.textContent='🎲…';gameDelay(()=>{face.textContent=['','⚀','⚁','⚂','⚃','⚄','⚅'][v];doMove(v)},500)}
+document.getElementById('rollBtn').disabled=true}
+function msg(t){document.getElementById('msg').textContent=t}
+function showResult(t,ok){let b=document.getElementById('resultBanner');b.textContent=t;let L=t.length;b.style.fontSize=L<=20?'25px':(L<=40?'20px':'17px');b.className=ok?'ok show':'bad show'}
+function hideResult(){let b=document.getElementById('resultBanner');if(b)b.className='';let q=document.getElementById('qReview');if(q)q.className=''}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function showReview(){let qv=document.getElementById('qReview');if(!qv||!S.currentDisp)return;let sel=S.currentSel||new Set();let h='<div class="rvHead">📝 本題回顧</div><div class="rvStem">'+esc(S.currentQ.stem)+'</div>';
+S.currentDisp.forEach(function(o){let isW=S.currentWant.indexOf(o.k)>=0,isG=sel.has(o.k);let cls=isW?'sc':(isG?'lp':'');let mark=isW?' ✅':(isG?' ❌':'');h+='<div class="rvOpt '+cls+'">'+esc(o.k+'. '+o.v)+mark+'</div>'});
+qv.innerHTML=h;qv.className='show'}
+function doMove(steps){let p=S.players[S.cur];let i=0;msg(p.name+' 擲出 '+steps+'，出發！');
+function step(){if(S.over)return;if(i>=steps){let cell=S.board[p.pos];if(p.lap>=S.targetLap){p.pos=0;renderAll();msg(p.name+' 超過起點也算到達！完成'+S.targetLap+'圈');gameDelay(()=>endGame(p),600);return}renderAll();gameDelay(()=>land(),450);return}
+p.pos=(p.pos+1)%S.size;if(p.pos===0){p.lap+=1;if(p.lap>=S.targetLap){renderAll();msg(p.name+' 回到起點！完成'+S.targetLap+'圈');gameDelay(()=>endGame(p),600);return}msg(p.name+' 經過起點（'+p.lap+'/'+S.targetLap+'圈）…')}
+i++;renderAll();gameDelay(step,320)}
+gameDelay(step,450)}
+function moveExtra(p,delta,noTrigger){let np=p.pos+delta;if(np>=S.size){np=np%S.size;p.lap+=1;if(p.lap>=S.targetLap&&!S.over){p.pos=0;renderAll();gameDelay(()=>endGame(p),500);return}}if(np<0)np=(np%S.size+S.size)%S.size;p.pos=np;renderAll();if(S.over)return;if(noTrigger){gameDelay(()=>next(),600);return}gameDelay(()=>land(true),600)}
+function drawQ(){if(!QUESTIONS.length)return null;if(!S.qBag||!S.qBag.length)S.qBag=shuffle(QUESTIONS.map(function(_,i){return i}));return QUESTIONS[S.qBag.pop()]}
+function land(){if(S.over)return;let p=S.players[S.cur];let cell=S.board[p.pos];
+if(cell.type==='start'){p.score+=5;msg(p.name+' 回到起點！+5分');renderAll();gameDelay(()=>next(),800);return}
+if(cell.type==='chance'||cell.type==='fate'){openCF(cell.type);return}
+cell.q=drawQ();if(!cell.q){next();return}openQ(cell)}
+function openQ(cell){S.currentSel=new Set();
+let disp=shuffle(cell.q.opts.map(function(o){return{v:o.v,ok:o.k}}));
+let L='ABCDEF',want=[];
+disp.forEach(function(d,i){d.k=L[i];if(cell.q.ans.indexOf(d.ok)>=0)want.push(d.k)});
+S.currentQ=cell.q;S.currentDisp=disp;S.currentWant=want;
+document.getElementById('qTitle').textContent=cell.label+(want.length>1?'（複選）':'（單選）');document.getElementById('qStem').textContent=cell.q.stem;
+let box=document.getElementById('qOpts');box.innerHTML='';disp.forEach(function(o){let b=document.createElement('button');b.className='opt';b.textContent=o.k+'. '+o.v;b.onclick=function(){if(S.currentWant.length>1){if(S.currentSel.has(o.k)){S.currentSel.delete(o.k);b.classList.remove('sel')}else{S.currentSel.add(o.k);b.classList.add('sel')}}else{S.currentSel=new Set([o.k]);Array.from(box.children).forEach(function(x){x.classList.remove('sel')});b.classList.add('sel')}};  box.appendChild(b)});
+document.getElementById('qModal').classList.add('on');
+stopQTimer();
+if(S.qTimeOn){S.qTimeLeft=S.qTimeSec;renderQTimer();S.qTimerId=setInterval(function(){if(S.over||S.paused)return;S.qTimeLeft--;if(S.qTimeLeft<=0){stopQTimer();submitQ()}else renderQTimer()},1000)}
+else{document.getElementById('qTimer').textContent=''}}
+function renderQTimer(){let el=document.getElementById('qTimer');el.textContent='⏱ 作答剩餘 '+S.qTimeLeft+' 秒';el.style.color=S.qTimeLeft<=10?'#dc2626':'#c2416b'}
+function stopQTimer(){if(S.qTimerId){clearInterval(S.qTimerId);S.qTimerId=null}}
+function wantText(){let m={};(S.currentDisp||[]).forEach(function(o){m[o.k]=o.v});return (S.currentWant||[]).slice().sort().map(function(k){return k+'.'+(m[k]||'')}).join('、')}
+function closeQ(skip){stopQTimer();document.getElementById('qModal').classList.remove('on');if(skip)next()}
+function submitQ(){stopQTimer();let p=S.players[S.cur];let got=Array.from(S.currentSel).sort().join('');let want=(S.currentWant||[]).slice().sort().join('');let wt=wantText();document.getElementById('qModal').classList.remove('on');
+if(got===want&&got!==''){p.score+=S.scoreOk;showResult('✅ '+p.name+' 答對 +'+S.scoreOk+'（答案'+wt+'）',true)}
+else{if(S.wrongMode==='deduct'){p.score=Math.max(0,p.score-S.wrongVal);showResult('❌ 答錯扣'+S.wrongVal+'（正解'+wt+'，你選'+(got||'未選')+'）',false)}
+else if(S.wrongMode==='back'){p.pos=Math.max(0,p.pos-S.wrongVal);showResult('❌ 答錯倒退'+S.wrongVal+'格（正解'+wt+'）',false)}
+else{showResult('❌ 答錯不加分（正解'+wt+'，你選'+(got||'未選')+'）',false)}}
+showReview();renderAll();gameDelay(()=>next(),1600)}
+function openCF(type){S.currentCF=type;document.getElementById('cfTitle').textContent=type==='chance'?'❓ 機會':'🎁 命運';document.getElementById('cfText').textContent='…';document.getElementById('flipBox').classList.remove('go');document.getElementById('cfBtn').style.display='';document.getElementById('cfModal').classList.add('on')}
+function flipCard(){let p=S.players[S.cur];let deck=S.currentCF==='chance'?CHANCE:FATE;let c=deck[Math.floor(Math.random()*deck.length)];document.getElementById('cfText').textContent=c.t;document.getElementById('flipBox').classList.add('go');document.getElementById('cfBtn').style.display='none';
+gameDelay(()=>{document.getElementById('cfModal').classList.remove('on');S.extraTurn=false;c.do(p);if(S.over)return;msg(p.name+' '+(S.currentCF==='chance'?'機會':'命運')+'：'+c.t);renderAll();if(p.lap>=S.targetLap){endGame(p);return}if(S.extraTurn){S.extraTurn=false;updateTurn();return}if(!c.moves)next()},1350)}
+function next(){if(S.over)return;S.cur=(S.cur+1)%S.players.length;renderAll();updateTurn()}
+function endGame(winner){if(S.over)return;S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));let order=S.players.map((p,i)=>({name:p.name,emo:p.emo,lap:p.lap,score:p.score})).sort((a,b)=>b.lap-a.lap||b.score-a.score);
+let html='<p>🎉 <b><span class="ava">'+winner.emo+'</span> '+winner.name+'</b> 首先完成 '+S.targetLap+' 圈！</p><table class="rank"><tr><th>名次</th><th>隊伍</th><th>圈</th><th>分數</th></tr>';order.forEach((p,i)=>{html+='<tr><td>'+(i+1)+'</td><td><span class="ava">'+p.emo+'</span> '+p.name+'</td><td>'+p.lap+'</td><td>'+p.score+'</td></tr>'});html+='</table><div class="ruleNote">📏 勝利條件：<b>先走完《'+S.targetLap+'》圈，或是在總時間結束時分數最高的人獲勝喔！</b></div>';document.getElementById('rankTable').innerHTML=html;show('rank')}
+function endByTime(){if(S.over)return;S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));let order=S.players.map(p=>({name:p.name,emo:p.emo,lap:p.lap,score:p.score})).sort((a,b)=>b.score-a.score||b.lap-a.lap);
+let html='<p>⏱ 時間到！按分數排名（未走完圈數也結算）。</p><table class="rank"><tr><th>名次</th><th>隊伍</th><th>分數</th><th>圈</th></tr>';order.forEach((p,i)=>{html+='<tr><td>'+(i+1)+'</td><td><span class="ava">'+p.emo+'</span> '+p.name+'</td><td>'+p.score+'</td><td>'+p.lap+'</td></tr>'});html+='</table><div class="ruleNote">📏 總時間結束，還沒人走完《'+S.targetLap+'》圈，所以比總得分。<b>記住：先走完《'+S.targetLap+'》圈，或是在總時間結束時分數最高的人獲勝喔！</b></div>';document.getElementById('rankTable').innerHTML=html;show('rank')}
+function togglePause(){if(!document.getElementById('game').classList.contains('on')&&!S.paused)return;S.paused=!S.paused;document.getElementById('pauseModal').classList.toggle('on',S.paused);document.getElementById('pauseBtn').textContent=S.paused?'▶ 繼續':'⏸ 暫停'}
+function backToSetup(){if(!confirm('回設定頁會中斷目前遊戲，確定嗎？'))return;S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));stopQTimer();S.paused=false;S.clockStarted=false;document.getElementById('timerBar').style.display='none';document.getElementById('pauseModal').classList.remove('on');document.getElementById('orderModal').classList.remove('on');document.getElementById('pauseBtn').textContent='⏸ 暫停';show('setup')}
+const CODEX_SAMPLE = "課室大富翁題庫範本（小四適用，以下50題，題庫可自行加到上百題）\n每題三行＋---分隔，複選答案連寫（如AC）\n題目格＝總格－機會－命運－起點（例36格、2機會3命運→31題）；走到題目格才抽題，同輪不重複，全出過後重洗\n\n【題】4個萬、8個千、5個百、3個十和7個一合起來是多少？\n【選】A.48537 B.73584 C.35847 D.74853\n【答】A\n---\n【題】摩托車售價「九萬三千七百九十八」元是？\n【選】A.93798 B.89937 C.37989 D.93978\n【答】A\n---\n【題】下面哪些是5的倍數？（複選）\n【選】A.15 B.22 C.30 D.41\n【答】AC\n---\n【題】7×8＝？\n【選】A.54 B.56 C.63 D.48\n【答】B\n---\n【題】下面哪些是偶數？（複選）\n【選】A.12 B.35 C.40 D.57\n【答】AC\n---\n【題】過馬路時看到行人紅燈，應該怎麼做？\n【選】A.停下來等綠燈 B.沒車就快跑過去 C.邊看手機邊走 D.直接衝過去\n【答】A\n---\n【題】教室裡遇到地震，哪些做法是對的？（複選）\n【選】A.躲到桌下抓緊桌腳 B.立刻搭電梯下樓 C.推擠衝出教室 D.遠離窗戶和掉落物\n【答】AD\n---\n【題】哪些時候一定要把手洗乾淨？（複選）\n【選】A.吃東西前 B.上完廁所後 C.打完球、玩完遊具後 D.都不用洗也沒關係\n【答】ABC\n---\n【題】《論語》「學而時習之」的下一句是什麼？\n【選】A.不亦說乎 B.不亦苦乎 C.不亦遠乎 D.不亦難乎\n【答】A\n---\n【題】李白《靜夜思》「舉頭望明月」的下一句是什麼？\n【選】A.低頭思故鄉 B.抬頭看太陽 C.出門找朋友 D.回家吃晚餐\n【答】A\n---\n【題】下面哪些是十二生肖裡有的動物？（複選）\n【選】A.鼠 B.龍 C.貓 D.虎\n【答】ABD\n---\n【題】1小時等於幾分鐘？\n【選】A.60 B.100 C.90 D.30\n【答】A\n---\n【題】正方形有幾個直角？\n【選】A.3 B.4 C.2 D.5\n【答】B\n---\n【題】端午節有哪些傳統習俗？（複選）\n【選】A.吃粽子 B.划龍舟 C.賞月吃月餅 D.立蛋、掛香包\n【答】ABD\n---\n【題】哪些是節約用水的好做法？（複選）\n【選】A.刷牙時關水龍頭 B.用洗米水澆花 C.一直開著水龍頭玩水 D.抹肥皂時先關水\n【答】ABD\n---\n【題】18顆糖平分給3人，每人分到幾顆？\n【選】A.9 B.6 C.5 D.8\n【答】B\n---\n【題】9×6＝？\n【選】A.54 B.45 C.63 D.56\n【答】A\n---\n【題】48÷6＝？\n【選】A.7 B.8 C.9 D.6\n【答】B\n---\n【題】下面哪些是3的倍數？（複選）\n【選】A.9 B.14 C.21 D.25\n【答】AC\n---\n【題】長5公分、寬3公分的長方形，周長是多少？\n【選】A.16公分 B.15公分 C.8公分 D.14公分\n【答】A\n---\n【題】1公斤等於幾公克？\n【選】A.1000 B.100 C.10 D.500\n【答】A\n---\n【題】下面哪個分數最大？\n【選】A.1/2 B.1/3 C.1/4 D.1/5\n【答】A\n---\n【題】三角形有幾個邊？\n【選】A.3個 B.4個 C.5個 D.6個\n【答】A\n---\n【題】遇到火災時，哪些做法是對的？（複選）\n【選】A.走安全梯逃生 B.搭電梯下樓 C.用濕毛巾摀住口鼻 D.躲進廁所鎖門不出來\n【答】AC\n---\n【題】哪些是健康的早餐組合？（複選）\n【選】A.牛奶、雞蛋、麵包 B.可樂、薯條 C.水果、燕麥 D.只喝一杯糖水\n【答】AC\n---\n【題】下面哪些垃圾可以回收？（複選）\n【選】A.寶特瓶 B.廢紙 C.廚餘 D.玻璃瓶\n【答】ABD\n---\n【題】夏天在操場中暑了，第一步該怎麼做？\n【選】A.到陰涼處休息並補充水分 B.繼續跑步流汗 C.直接沖冰水 D.躺在太陽下曬\n【答】A\n---\n【題】中秋節家家戶戶會吃什麼應景？\n【選】A.月餅 B.粽子 C.湯圓 D.年糕\n【答】A\n---\n【題】「床前明月光」是誰的詩？\n【選】A.李白 B.杜甫 C.白居易 D.蘇軾\n【答】A\n---\n【題】下面哪些是四季的名稱？（複選）\n【選】A.春 B.夏 C.秋 D.冬\n【答】ABCD\n---\n【題】25＋37＝？\n【選】A.62 B.52 C.72 D.42\n【答】A\n---\n【題】100－45＝？\n【選】A.55 B.45 C.65 D.35\n【答】A\n---\n【題】看到行人綠燈亮了，表示什麼？\n【選】A.行人可以通行 B.行人不能走 C.車子可以撞人 D.大家原地不動\n【答】A\n---\n【題】哪些是保護眼睛的好習慣？（複選）\n【選】A.看書保持約30公分 B.躺著看書 C.多看遠方和綠色植物 D.長時間打電動不停\n【答】AC\n---\n【題】端午節是為了紀念誰？\n【選】A.屈原 B.孔子 C.岳飛 D.鄭成功\n【答】A\n---\n【題】成語「守株待兔」是什麼意思？\n【選】A.空等待、不努力 B.很勤勞種田 C.兔子很可愛 D.農夫力氣大\n【答】A\n---\n【題】1天有幾小時？\n【選】A.24 B.12 C.48 D.60\n【答】A\n---\n【題】時鐘走到3點整，時針和分針會形成什麼角？\n【選】A.直角 B.銳角 C.鈍角 D.平角\n【答】A\n---\n【題】哪些是保護牙齒的好做法？（複選）\n【選】A.早晚刷牙 B.少吃糖果餅乾 C.用牙齒咬開瓶蓋 D.定期看牙醫\n【答】ABD\n---\n【題】清明節大家通常會去做什麼？\n【選】A.掃墓祭祖 B.划龍舟 C.賞月 D.放鞭炮過年\n【答】A\n---\n【題】2000＋3500＝？\n【選】A.5500 B.4500 C.5000 D.6000\n【答】A\n---\n【題】過馬路應該走哪裡最安全？\n【選】A.斑馬線 B.車陣中間 C.高速公路上 D.哪裡都一樣\n【答】A\n---\n【題】「春眠不覺曉」的下一句是什麼？\n【選】A.處處聞啼鳥 B.低頭思故鄉 C.粒粒皆辛苦 D.上山打老虎\n【答】A\n---\n【題】哪些是省電的好做法？（複選）\n【選】A.隨手關燈 B.冷氣調26度以上 C.電視不看也不關 D.大白天還開大燈\n【答】AB\n---\n【題】一包餅乾24片，4人平分，每人幾片？\n【選】A.5 B.6 C.7 D.8\n【答】B\n---\n【題】十二生肖中排第一的是哪一種動物？\n【選】A.鼠 B.牛 C.虎 D.龍\n【答】A\n---\n【題】預防感冒，哪些做法是對的？（複選）\n【選】A.勤洗手 B.人多時戴口罩 C.跟感冒的人共用杯子 D.多喝水、多休息\n【答】ABD\n---\n【題】邊長4公分的正方形，面積是多少？\n【選】A.16平方公分 B.8平方公分 C.12平方公分 D.20平方公分\n【答】A\n---\n【題】七夕的傳說跟哪一對人物有關？\n【選】A.牛郎和織女 B.梁山伯和祝英台 C.白蛇和許仙 D.嫦娥和后羿\n【答】A\n---\n【題】哪些是良好的閱讀習慣？（複選）\n【選】A.坐姿端正 B.光線充足 C.邊走路邊看書 D.每30分鐘休息一下\n【答】ABD\n";
+// Visual/layout layer. The reference game's scoring, decks, draws and turn rules remain authoritative.
+let gameVersion=0;
+function gameDelay(fn,ms){const version=gameVersion;let remaining=ms,last=performance.now();function pulse(){if(version!==gameVersion||S.over)return;const now=performance.now();if(!S.paused)remaining-=now-last;last=now;if(remaining<=0)fn();else setTimeout(pulse,Math.min(50,remaining))}return setTimeout(pulse,Math.min(50,ms))}
+const baseStart=startGame;
+startGame=function(){gameVersion++;stopQTimer();baseStart()};
+// Card movement uses the same destinations and trigger policy as the reference, with visible steps.
+moveExtra=function(p,delta,noTrigger){let left=Math.abs(delta),dir=Math.sign(delta);function step(){if(S.over)return;if(!left){if(noTrigger)gameDelay(next,600);else gameDelay(()=>land(true),600);return}p.pos=(p.pos+dir+S.size)%S.size;left--;if(dir>0&&p.pos===0){p.lap++;if(p.lap>=S.targetLap){renderAll();gameDelay(()=>endGame(p),500);return}}renderAll();gameDelay(step,320)}gameDelay(step,250)};
+const originalShow = show;
+const originalBoardSides=boardSides;
+boardSides=function(n){const s=originalBoardSides(n),W=document.getElementById('boardWrap').clientWidth||1100,cap=Math.max(3,Math.floor((W-12)/80));if(s.top>cap||s.bottom>cap){s.top=Math.min(cap,s.top);s.bottom=Math.min(cap,s.bottom);const rest=n-s.top-s.bottom;s.right=Math.floor(rest/2);s.left=rest-s.right}return s};
+show = function(id){originalShow(id);if(id==='game' && S.board.length) requestAnimationFrame(renderAll)};
+loadSample = function(){document.getElementById('qtext').value=CODEX_SAMPLE;parseQText()};
+downloadTemplate = function(){const url=URL.createObjectURL(new Blob([CODEX_SAMPLE],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='題目範本.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+function geometry(n,W,H){
+  const s=boardSides(n),gap=16,pad=14;
+  const w=Math.floor(Math.min(164,Math.max(86,W*.11),(W-2*pad-gap*(Math.max(s.top,s.bottom)-1))/Math.max(s.top,s.bottom)));
+  const h=Math.floor(Math.min(96,(H-2*pad-gap*(Math.max(s.left,s.right)+1))/(Math.max(s.left,s.right)+2)));
+  const x0=pad+w/2,x1=W-pad-w/2,y0=pad+h/2,y1=H-pad-h/2;
+  const positions=[];
+  for(let i=0;i<s.top;i++)positions.push({x:x0+(x1-x0)*i/(s.top-1),y:y0});
+  for(let i=0;i<s.right;i++)positions.push({x:x1,y:y0+(y1-y0)*(i+1)/(s.right+1)});
+  for(let i=0;i<s.bottom;i++)positions.push({x:x1-(x1-x0)*i/(s.bottom-1),y:y1});
+  for(let i=0;i<s.left;i++)positions.push({x:x0,y:y1-(y1-y0)*(i+1)/(s.left+1)});
+  return {w,h,positions,insetX:pad+w+12,insetY:pad+h+12};
+}
+renderAll = function(){
+  if(!S.board.length)return;
+  const w=document.getElementById('boardWrap');
+  const travelling=w.querySelector('.travellingToken');
+  const center=document.getElementById('centerBox'),review=document.getElementById('qReview'),result=document.getElementById('resultBanner');
+  const bar=document.getElementById('playersBar');bar.style.setProperty('--players',S.players.length);
+  bar.innerHTML=S.players.map((p,i)=>'<div class="pchip '+(i===S.cur?'cur':'')+'"><span class="pchipName"><span class="ava">'+p.emo+'</span> '+esc(p.name)+'</span><div class="pchipStats"><span class="sc">分 '+p.score+'</span><span class="lp">圈 '+p.lap+'/'+S.targetLap+'</span></div><div class="lapTrack"><i style="width:'+Math.min(100,p.lap/S.targetLap*100)+'%"></i></div></div>').join('');
+  const header=document.querySelector('header').getBoundingClientRect();
+  w.style.height=Math.max(innerWidth<=760?630:510,innerHeight-header.height-bar.offsetHeight-42)+'px';
+  const g=geometry(S.size,w.clientWidth||1100,w.clientHeight||600);
+  w.replaceChildren();
+  const stage=document.createElement('div');stage.id='innerStage';
+  Object.assign(stage.style,{left:g.insetX+'px',right:g.insetX+'px',top:g.insetY+'px',bottom:g.insetY+'px'});
+  stage.append(review,center,result);w.append(stage);
+  S.board.forEach((cell,i)=>{
+    const a=g.positions[i],b=g.positions[(i+1)%S.size],dx=b.x-a.x,dy=b.y-a.y;
+    const ar=document.createElement('div');ar.className='arrow';ar.textContent='➤';Object.assign(ar.style,{left:(a.x+b.x)/2+'px',top:(a.y+b.y)/2+'px',transform:'translate(-50%,-50%) rotate('+Math.atan2(dy,dx)*180/Math.PI+'deg)'});w.append(ar);
+    const d=document.createElement('div');d.className='cell '+cell.type+(S.players[S.cur]?.pos===i?' cur':'')+(g.h<86?' compact':'');d.dataset.index=i;
+    Object.assign(d.style,{left:a.x+'px',top:a.y+'px',width:g.w+'px',height:g.h+'px',fontSize:Math.max(14,Math.min(20,g.w/6.6))+'px'});
+    const people=S.players.filter(p=>p.pos===i),size=Math.min(g.h<86?20:28,(g.w-24)/(Math.max(people.length,1)*1.3));
+    d.innerHTML='<div class="cellIndex">'+String(i+1).padStart(2,'0')+'</div><div class="cellLabel">'+({start:'🏁',q:'✎',chance:'✦',fate:'🎁'}[cell.type])+' '+cell.label+'</div><div class="toks">'+people.map(p=>'<span class="token" data-player="'+S.players.indexOf(p)+'" style="font-size:'+size+'px">'+p.emo+'</span>').join('')+'</div>';w.append(d);
+  });
+  if(travelling){w.append(travelling);const parked=w.querySelector('.token[data-player="'+travelling.dataset.player+'"]');if(parked)parked.style.visibility='hidden'}
+  updateIdlePanels();
+};
+function updateIdlePanels(){
+  const review=document.getElementById('qReview'),result=document.getElementById('resultBanner');
+  if(!review.classList.contains('show'))review.innerHTML='<div class="panelEyebrow">LEARN · 題目回顧</div><div class="panelIcon">📖</div><div class="panelHero">輪到你，<br>展現好本領！</div><p class="panelCopy">走到題目格就抽一題。答完後，這裡會留下題目與正確答案。</p><div class="panelFooter">✅ 正確答案<br>❌ 本次錯選<br>同輪題庫不重複出題</div>';
+  if(!result.classList.contains('show'))result.innerHTML='<div class="panelEyebrow">EXPLORE · 冒險指南</div><div class="panelHero">下一格，<br>會有什麼驚喜？</div><div class="legendLine"><i class="legendDot" style="background:#9dcce8"></i>題目・答對 +'+S.scoreOk+'</div><div class="legendLine"><i class="legendDot" style="background:#ba9eda"></i>機會・翻開好運</div><div class="legendLine"><i class="legendDot" style="background:#e7a6b7"></i>命運・驚喜挑戰</div><div class="legendLine"><i class="legendDot" style="background:#e9c264"></i>起點・停留 +5</div><div class="panelFooter">目標 '+S.targetLap+' 圈<br>跟著箭頭，順時針前進 →</div>';
+}
+hideResult = function(){document.getElementById('qReview').className='';document.getElementById('resultBanner').className='';updateIdlePanels()};
+const baseUpdateTurn=updateTurn;
+updateTurn=function(){baseUpdateTurn();if(!S.over){const p=S.players[S.cur];document.getElementById('turnInfo').innerHTML='<div class="turnName"><span class="ava">'+p.emo+'</span> '+esc(p.name)+'</div><div class="turnStats"><span class="sc">分 '+p.score+'</span> <span class="lp">圈 '+p.lap+'/'+S.targetLap+'</span></div>';syncRollLabels();msg('準備好了嗎？按下「'+rollActionName()+'」出發！')}};
+const baseRoll=roll;
+roll=function(){if(S.over||S.paused||!S.orderDone||document.getElementById('rollBtn').disabled)return;const face=document.getElementById('diceFace');face.classList.add('rolling');setTimeout(()=>face.classList.remove('rolling'),520);baseRoll()};
+const baseShowResult=showResult;
+showResult=function(t,ok){baseShowResult(t,ok);const b=document.getElementById('resultBanner');b.setAttribute('role','status');b.style.fontSize='clamp(19px,1.6vw,26px)';b.innerHTML='<div class="panelEyebrow">RESULT · 本次挑戰</div><div class="resultMark">'+(ok?'✓':'×')+'</div><div class="resultTitle">'+(ok?'答對了！':'再接再厲！')+'</div><div class="resultDescription">'+esc(t)+'</div><div class="resultFoot">'+(ok?'把這份好表現，帶到下一回合。':'看看左邊的正解，下次再挑戰。')+'</div>'};
+const baseShowReview=showReview;
+showReview=function(){baseShowReview();const footer=document.createElement('div');footer.className='reviewFoot';footer.textContent='一起看懂答案，再開始下一回合。';document.getElementById('qReview').append(footer)};
+const baseOpenQ=openQ;
+openQ=function(cell){baseOpenQ(cell);document.querySelectorAll('#qOpts .opt').forEach(b=>{b.setAttribute('aria-pressed','false');const click=b.onclick;b.onclick=function(){click.call(this);document.querySelectorAll('#qOpts .opt').forEach(o=>o.setAttribute('aria-pressed',o.classList.contains('sel')))}})};
+const center=document.getElementById('centerBox');
+const turnLabel=document.createElement('div');turnLabel.className='turnEyebrow';turnLabel.textContent='YOUR TURN · 換你出發';center.prepend(turnLabel);
+const rule=document.createElement('div');rule.className='boardRule';rule.textContent='擲骰子 → 逐格前進 → 開啟挑戰';center.append(rule);
+function setupRule(){const note=document.querySelector('#setup>.card:last-child .small');note.textContent='題目格採發牌制，同輪不重複；選項每次洗牌。先走完《'+document.getElementById('targetLap').value+'》圈，或是在總時間結束時分數最高的人獲勝喔！'}
+document.getElementById('targetLap').addEventListener('input',setupRule);setupRule();
+drop.addEventListener('dragover',()=>drop.classList.add('dragging'));drop.addEventListener('dragleave',()=>drop.classList.remove('dragging'));drop.addEventListener('drop',()=>drop.classList.remove('dragging'));
+for(const modal of document.querySelectorAll('.modal')){modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true')}
+document.getElementById('msg').setAttribute('aria-live','polite');
+
+// One clock for dice, spinner and travelling pieces: pauses and new-game cancellation apply to all.
+function animateFor(duration,frame,done,cancel=()=>{}){
+  const version=gameVersion;let elapsed=0,last=performance.now();
+  function tick(now){
+    if(version!==gameVersion||S.over){cancel();return}
+    if(!S.paused)elapsed+=Math.min(80,now-last);last=now;
+    const t=Math.min(1,elapsed/duration);frame(t);
+    if(t===1)done();else requestAnimationFrame(tick);
+  }
+  frame(0);requestAnimationFrame(tick);
+}
+function makeRollFace(mode,value=1){
+  syncRollLabels();document.getElementById('centerBox').dataset.rollMode=mode;
+  const face=document.getElementById('diceFace');face.classList.remove('rolling');face.classList.add('motionFace');face.dataset.mode=mode;face.setAttribute('aria-label',mode==='spin'?'數字轉盤':'骰子');
+  if(mode==='spin'){
+    const colors=['#c7ead9','#d1e7fa','#e3d4f5','#f7d3de','#ffdfa7','#dcebb9'];
+    const point=deg=>[100+94*Math.cos(deg*Math.PI/180),100+94*Math.sin(deg*Math.PI/180)];
+    let sectors='';for(let i=0;i<6;i++){const a=point(-120+i*60),b=point(-60+i*60),ang=(-90+i*60)*Math.PI/180;sectors+='<path d="M100 100 L'+a.join(' ')+' A94 94 0 0 1 '+b.join(' ')+' Z" fill="'+colors[i]+'" stroke="white" stroke-width="3"/><text x="'+(100+70*Math.cos(ang))+'" y="'+(100+70*Math.sin(ang))+'" text-anchor="middle" dominant-baseline="central" font-size="34" font-weight="900" fill="#253e4b">'+(i+1)+'</text>'}
+    face.innerHTML='<div class="wheelPointer"></div><svg class="numberWheel" viewBox="0 0 200 200" aria-hidden="true">'+sectors+'</svg><span class="wheelHub">'+value+'</span>';
+  }else{
+    const dots={1:[5],2:[1,9],3:[1,5,9],4:[1,3,7,9],5:[1,3,5,7,9],6:[1,3,4,6,7,9]};
+    face.innerHTML='<div class="diceCube">'+Object.entries(dots).map(([n,spots])=>'<div class="cubeFace face'+n+'">'+Array.from({length:9},(_,i)=>'<i class="pip '+(spots.includes(i+1)?'visible':'')+'"></i>').join('')+'</div>').join('')+'</div>';
+  }
+  return face;
+}
+roll=function(){
+  if(S.over||S.paused||!S.orderDone||document.getElementById('rollBtn').disabled)return;
+  hideResult();document.getElementById('rollBtn').disabled=true;
+  if(S.timeOn&&!S.clockStarted){S.clockStarted=true;S.timerId=setInterval(tick,1000);renderTimer()}
+  const value=1+Math.floor(Math.random()*6),mode=document.getElementById('diceMode').value;
+  const face=makeRollFace(mode);face.dataset.rolling='true';msg(mode==='spin'?'轉盤旋轉中，看看會停在哪個數字！':'骰子翻滾中，看看會擲出幾點！');
+  const cube=face.querySelector('.diceCube'),wheel=face.querySelector('.numberWheel');
+  const rotations={1:[0,0],2:[0,-90],3:[0,-180],4:[0,90],5:[-90,0],6:[90,0]};
+  if(mode==='spin')face.querySelector('.wheelHub').textContent='…';
+  animateFor(mode==='spin'?2300:1650,t=>{
+    const ease=1-Math.pow(1-t,3);
+    if(wheel)wheel.style.transform='rotate('+((1800-(value-1)*60)*ease)+'deg)';
+    if(cube)cube.style.transform='translateY('+(-9*Math.sin(Math.PI*t))+'px) rotateX('+((720+rotations[value][0])*ease)+'deg) rotateY('+((1080+rotations[value][1])*ease)+'deg)';
+  },()=>{
+    face.dataset.rolling='false';face.dataset.value=value;face.setAttribute('aria-label',(mode==='spin'?'轉盤結果 ':'擲骰結果 ')+value);
+    if(wheel)face.querySelector('.wheelHub').textContent=value;
+    msg((mode==='spin'?'轉盤停在 ':'擲出 ')+value+'，準備前進！');gameDelay(()=>doMove(value),650);
+  },()=>{face.dataset.rolling='false'});
+};
+function travelOne(p,to,dir,done){
+  const board=document.getElementById('boardWrap'),actor=document.createElement('div'),index=S.players.indexOf(p);
+  const oldToken=board.querySelector('[data-player="'+index+'"]');if(oldToken)oldToken.style.visibility='hidden';
+  actor.className='travellingToken '+(dir<0?'backward':'forward');actor.textContent=p.emo;actor.dataset.player=index;actor.setAttribute('aria-label',p.name+(dir<0?'倒退中':'前進中'));board.append(actor);
+  const from=p.pos;
+  function cleanup(){actor.remove();if(oldToken)oldToken.style.visibility=''}
+  animateFor(560,t=>{
+    const g=geometry(S.size,board.clientWidth,board.clientHeight),a=g.positions[from],b=g.positions[to];
+    const ease=t*t*(3-2*t);actor.style.left=(a.x+(b.x-a.x)*ease)+'px';actor.style.top=(a.y+(b.y-a.y)*ease+g.h*.22-6*Math.sin(Math.PI*t))+'px';
+    actor.style.transform='translate(-50%,-50%) rotate('+(Math.sin(t*Math.PI*2)*7)+'deg)';
+  },()=>{cleanup();p.pos=to;done()},cleanup);
+}
+function walkSteps(p,delta,done){
+  const dir=Math.sign(delta),total=Math.abs(Math.trunc(delta));let moved=0;
+  function step(){
+    if(S.over)return;if(moved>=total){done();return}
+    msg(p.name+' '+(dir<0?'倒退':'前進')+' '+(moved+1)+' / '+total+' 格');
+    const to=(p.pos+dir+S.size)%S.size;
+    travelOne(p,to,dir,()=>{
+      moved++;if(dir>0&&p.pos===0)p.lap++;renderAll();
+      if(dir>0&&p.lap>=S.targetLap){msg(p.name+' 完成 '+S.targetLap+' 圈！');gameDelay(()=>endGame(p),600);return}
+      gameDelay(step,150);
+    });
+  }
+  step();
+}
+doMove=function(steps){const p=S.players[S.cur];walkSteps(p,steps,()=>gameDelay(land,450))};
+moveExtra=function(p,delta,noTrigger){walkSteps(p,delta,()=>gameDelay(noTrigger?next:()=>land(true),600))};
+// Wrong-answer retreat preserves the reference rule: stop at zero, do not trigger the destination.
+submitQ=function(){
+  stopQTimer();const p=S.players[S.cur],got=Array.from(S.currentSel).sort().join(''),want=(S.currentWant||[]).slice().sort().join(''),wt=wantText();
+  document.getElementById('qModal').classList.remove('on');let retreat=0;
+  if(got===want&&got!==''){p.score+=S.scoreOk;showResult('✅ '+p.name+' 答對 +'+S.scoreOk+'（答案'+wt+'）',true)}
+  else if(S.wrongMode==='deduct'){p.score=Math.max(0,p.score-S.wrongVal);showResult('❌ 答錯扣'+S.wrongVal+'（正解'+wt+'，你選'+(got||'未選')+'）',false)}
+  else if(S.wrongMode==='back'){retreat=Math.min(p.pos,Math.max(0,Math.trunc(S.wrongVal)));showResult('❌ 答錯倒退'+S.wrongVal+'格（正解'+wt+'）',false)}
+  else showResult('❌ 答錯不加分（正解'+wt+'，你選'+(got||'未選')+'）',false);
+  showReview();renderAll();
+  if(retreat>0)gameDelay(()=>walkSteps(p,-retreat,()=>gameDelay(next,700)),1000);else gameDelay(next,1600);
+};
+const startBeforeMotion=startGame;
+startGame=function(){startBeforeMotion();makeRollFace(document.getElementById('diceMode').value)};
+function rollActionName(){return document.getElementById('diceMode').value==='spin'?'轉轉盤':'擲骰子'}
+function syncRollLabels(){const action=rollActionName();document.getElementById('rollBtn').textContent=action;document.querySelector('.boardRule').textContent=action+' → 逐格前進 → 開啟挑戰'}
+
+loadSample();
+</script>
+</body>
+</html>
