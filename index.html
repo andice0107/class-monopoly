@@ -154,6 +154,21 @@ label{font-size:15px;font-weight:800;color:#435367;margin:10px 0 6px}input,selec
 #centerBox[data-roll-mode="spin"] .boardRule{margin-top:8px;padding-top:8px}
 @media(max-height:820px) and (min-width:761px){#centerBox[data-roll-mode="spin"] .diceBig{width:108px;height:108px;margin:6px auto}#centerBox[data-roll-mode="spin"] #msg{font-size:18px}}
 
+/* A game panel never gets its own scrollbar.  Text is measured in JavaScript
+   and only reduced in small, readable steps when the current device needs it. */
+#qReview,#resultBanner,#centerBox,.modal .box{overflow:hidden;min-height:0;--fit-scale:1}
+.pchipName{white-space:normal;overflow:visible;text-overflow:clip}
+table.rank{table-layout:fixed;word-break:break-word}
+.panelEyebrow,.rvHead{font-size:calc(14px * var(--fit-scale));padding-bottom:calc(10px * var(--fit-scale));margin-bottom:calc(12px * var(--fit-scale))}
+.panelHero{font-size:clamp(calc(20px * var(--fit-scale)),calc(2.1vw * var(--fit-scale)),calc(34px * var(--fit-scale)));margin:calc(8px * var(--fit-scale)) 0 calc(14px * var(--fit-scale))}
+.panelIcon{font-size:calc(42px * var(--fit-scale))}.panelCopy,.legendLine{font-size:calc(17px * var(--fit-scale));line-height:1.48}.legendLine{padding:calc(9px * var(--fit-scale)) 0}
+.panelFooter{margin-top:calc(8px * var(--fit-scale));padding:calc(10px * var(--fit-scale));font-size:calc(15px * var(--fit-scale));line-height:1.45}
+.rvStem{font-size:calc(19px * var(--fit-scale));line-height:1.42;margin-bottom:calc(8px * var(--fit-scale))}.rvOpt{font-size:calc(17px * var(--fit-scale));line-height:1.35;padding:calc(5px * var(--fit-scale)) calc(8px * var(--fit-scale));margin:calc(5px * var(--fit-scale)) 0}
+.resultMark{font-size:clamp(calc(44px * var(--fit-scale)),calc(6vw * var(--fit-scale)),calc(82px * var(--fit-scale));margin:calc(6px * var(--fit-scale)) 0}.resultTitle{font-size:clamp(calc(23px * var(--fit-scale)),calc(2.6vw * var(--fit-scale)),calc(36px * var(--fit-scale));margin-bottom:calc(10px * var(--fit-scale))}.resultDescription{font-size:clamp(calc(18px * var(--fit-scale)),calc(1.6vw * var(--fit-scale)),calc(24px * var(--fit-scale));line-height:1.42}.resultFoot,.reviewFoot{margin-top:calc(10px * var(--fit-scale));padding-top:calc(10px * var(--fit-scale));font-size:calc(16px * var(--fit-scale));line-height:1.4}
+.panel-fit-tight .panelIcon{display:none}.panel-fit-tight .panelHero{margin-top:0}.panel-fit-tight .resultMark{font-size:calc(46px * var(--fit-scale))}.panel-fit-tight .panelFooter{padding:6px 8px}.panel-fit-tight .legendLine{padding:4px 0}
+#qModal .box{--fit-scale:1}#qModal h3{font-size:calc(23px * var(--fit-scale))}#qTimer{font-size:calc(23px * var(--fit-scale))}#qStem{font-size:calc(23px * var(--fit-scale))!important;line-height:1.4;margin:calc(10px * var(--fit-scale)) 0 calc(14px * var(--fit-scale))!important}.opt{min-height:calc(62px * var(--fit-scale));font-size:calc(20px * var(--fit-scale));line-height:1.35;padding:calc(12px * var(--fit-scale))}
+@media(max-width:760px){.panelCopy,.legendLine{font-size:calc(16px * var(--fit-scale))}.rvStem{font-size:calc(18px * var(--fit-scale))}.rvOpt{font-size:calc(16px * var(--fit-scale))}.resultDescription{font-size:calc(17px * var(--fit-scale))}.resultFoot,.reviewFoot{font-size:calc(15px * var(--fit-scale))}}
+
 </style>
 </head>
 <body>
@@ -180,6 +195,10 @@ label{font-size:15px;font-weight:800;color:#435367;margin:10px 0 6px}input,selec
     <div class="row">
       <div><label>走完幾圈獲勝（1~5）</label><input id="targetLap" type="number" min="1" max="5" value="2"></div>
       <div><label>擲骰方式</label><select id="diceMode"><option value="dice">🎲 骰子 1~6</option><option value="spin">🎡 數字轉盤 1~6</option></select></div>
+    </div>
+    <div class="row">
+      <div><label><input id="bgmEnabled" type="checkbox" checked> 背景音樂</label><div class="small">輕快循環，預設開啟</div></div>
+      <div><label><input id="sfxEnabled" type="checkbox" checked> 動作音效</label><div class="small">骰子、轉盤、移動、倒退、翻牌與結果，預設開啟</div></div>
     </div>
     <div id="chanceInfo" class="small"></div>
     <div class="row">
@@ -257,6 +276,48 @@ Word 做好後：另存新檔 → 純文字(.txt) → 拖進本工具。
 
 <script>
 let S={players:[],board:[],size:12,cur:0,over:false,paused:false,scoreOk:10,wrongMode:'none',wrongVal:5,currentQ:null,currentSel:new Set(),currentCF:null,extraTurn:false,targetLap:2,timeOn:false,timeLeft:0,timerId:null,timeUp:false,orderDone:false,qTimeOn:false,qTimeSec:30,qTimeLeft:0,qTimerId:null};
+// All audio is generated in the browser: the game stays self-contained and works offline.
+const AUDIO={ctx:null,bgmTimer:null,bgmStep:0,bgm:true,sfx:true};
+function audioContext(){
+  if(!AUDIO.ctx){const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return null;AUDIO.ctx=new Ctx()}
+  if(AUDIO.ctx.state==='suspended')AUDIO.ctx.resume();
+  return AUDIO.ctx;
+}
+function tone(freq,duration=.12,type='sine',volume=.055,delay=0){
+  const ctx=audioContext();if(!ctx)return;
+  const osc=ctx.createOscillator(),gain=ctx.createGain(),at=ctx.currentTime+delay;
+  osc.type=type;osc.frequency.setValueAtTime(freq,at);gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(volume,at+.012);gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
+  osc.connect(gain).connect(ctx.destination);osc.start(at);osc.stop(at+duration+.03);
+}
+function playSfx(kind){
+  if(!AUDIO.sfx)return;
+  const sounds={
+    start:()=>[262,330,392].forEach((n,i)=>tone(n,.16,'triangle',.045,i*.09)),
+    roll:()=>[175,220,262,330].forEach((n,i)=>tone(n,.07,'square',.028,i*.1)),
+    spin:()=>[262,330,392,523,659].forEach((n,i)=>tone(n,.09,'sine',.035,i*.1)),
+    move:()=>tone(520,.055,'triangle',.025), back:()=>tone(250,.08,'sawtooth',.03),
+    chance:()=>[523,659,784].forEach((n,i)=>tone(n,.13,'triangle',.045,i*.08)),
+    fate:()=>[392,311,262].forEach((n,i)=>tone(n,.14,'sine',.045,i*.09)),
+    correct:()=>[523,659,784].forEach((n,i)=>tone(n,.16,'triangle',.055,i*.08)),
+    wrong:()=>[220,174].forEach((n,i)=>tone(n,.18,'sawtooth',.04,i*.12)),
+    win:()=>[523,659,784,1047].forEach((n,i)=>tone(n,.22,'triangle',.06,i*.11))
+  };
+  (sounds[kind]||(()=>{}))();
+}
+function stopBgm(){if(AUDIO.bgmTimer){clearTimeout(AUDIO.bgmTimer);AUDIO.bgmTimer=null}}
+function startBgm(){
+  if(!AUDIO.bgm||AUDIO.bgmTimer||S.over)return;
+  if(!audioContext())return;
+  const melody=[262,330,392,330,294,349,440,349,330,392,523,392,294,330,392,262];
+  const play=()=>{if(!AUDIO.bgm||S.over){stopBgm();return}tone(melody[AUDIO.bgmStep++%melody.length],.42,'triangle',.018);AUDIO.bgmTimer=setTimeout(play,520)};
+  play();
+}
+function syncAudioSettings(){
+  AUDIO.bgm=document.getElementById('bgmEnabled').checked;AUDIO.sfx=document.getElementById('sfxEnabled').checked;
+  if(AUDIO.bgm&&!S.over&&S.board.length)startBgm();else if(!AUDIO.bgm)stopBgm();
+}
+document.getElementById('bgmEnabled').addEventListener('change',syncAudioSettings);
+document.getElementById('sfxEnabled').addEventListener('change',syncAudioSettings);
 function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));let t=a[i];a[i]=a[j];a[j]=t}return a}
 function boardSides(n){let top=Math.max(2,Math.round(n*2/6)),bottom=Math.max(2,Math.round(n*2/6)),right=Math.max(2,Math.round(n/6)),left=n-top-bottom-right;
 while(left<2){if(top>=bottom&&top>2)top--;else if(bottom>2)bottom--;else if(right>2)right--;else break;left=n-top-bottom-right}
@@ -374,15 +435,15 @@ else if(S.wrongMode==='back'){p.pos=Math.max(0,p.pos-S.wrongVal);showResult('❌
 else{showResult('❌ 答錯不加分（正解'+wt+'，你選'+(got||'未選')+'）',false)}}
 showReview();renderAll();gameDelay(()=>next(),1600)}
 function openCF(type){S.currentCF=type;document.getElementById('cfTitle').textContent=type==='chance'?'❓ 機會':'🎁 命運';document.getElementById('cfText').textContent='…';document.getElementById('flipBox').classList.remove('go');document.getElementById('cfBtn').style.display='';document.getElementById('cfModal').classList.add('on')}
-function flipCard(){let p=S.players[S.cur];let deck=S.currentCF==='chance'?CHANCE:FATE;let c=deck[Math.floor(Math.random()*deck.length)];document.getElementById('cfText').textContent=c.t;document.getElementById('flipBox').classList.add('go');document.getElementById('cfBtn').style.display='none';
+function flipCard(){let p=S.players[S.cur];let deck=S.currentCF==='chance'?CHANCE:FATE;let c=deck[Math.floor(Math.random()*deck.length)];playSfx(S.currentCF==='chance'?'chance':'fate');document.getElementById('cfText').textContent=c.t;document.getElementById('flipBox').classList.add('go');document.getElementById('cfBtn').style.display='none';
 gameDelay(()=>{document.getElementById('cfModal').classList.remove('on');S.extraTurn=false;c.do(p);if(S.over)return;msg(p.name+' '+(S.currentCF==='chance'?'機會':'命運')+'：'+c.t);renderAll();if(p.lap>=S.targetLap){endGame(p);return}if(S.extraTurn){S.extraTurn=false;updateTurn();return}if(!c.moves)next()},1350)}
 function next(){if(S.over)return;S.cur=(S.cur+1)%S.players.length;renderAll();updateTurn()}
-function endGame(winner){if(S.over)return;S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));let order=S.players.map((p,i)=>({name:p.name,emo:p.emo,lap:p.lap,score:p.score})).sort((a,b)=>b.lap-a.lap||b.score-a.score);
+function endGame(winner){if(S.over)return;playSfx('win');stopBgm();S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));let order=S.players.map((p,i)=>({name:p.name,emo:p.emo,lap:p.lap,score:p.score})).sort((a,b)=>b.lap-a.lap||b.score-a.score);
 let html='<p>🎉 <b><span class="ava">'+winner.emo+'</span> '+winner.name+'</b> 首先完成 '+S.targetLap+' 圈！</p><table class="rank"><tr><th>名次</th><th>隊伍</th><th>圈</th><th>分數</th></tr>';order.forEach((p,i)=>{html+='<tr><td>'+(i+1)+'</td><td><span class="ava">'+p.emo+'</span> '+p.name+'</td><td>'+p.lap+'</td><td>'+p.score+'</td></tr>'});html+='</table><div class="ruleNote">📏 勝利條件：<b>先走完《'+S.targetLap+'》圈，或是在總時間結束時分數最高的人獲勝喔！</b></div>';document.getElementById('rankTable').innerHTML=html;show('rank')}
-function endByTime(){if(S.over)return;S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));let order=S.players.map(p=>({name:p.name,emo:p.emo,lap:p.lap,score:p.score})).sort((a,b)=>b.score-a.score||b.lap-a.lap);
+function endByTime(){if(S.over)return;playSfx('win');stopBgm();S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));let order=S.players.map(p=>({name:p.name,emo:p.emo,lap:p.lap,score:p.score})).sort((a,b)=>b.score-a.score||b.lap-a.lap);
 let html='<p>⏱ 時間到！按分數排名（未走完圈數也結算）。</p><table class="rank"><tr><th>名次</th><th>隊伍</th><th>分數</th><th>圈</th></tr>';order.forEach((p,i)=>{html+='<tr><td>'+(i+1)+'</td><td><span class="ava">'+p.emo+'</span> '+p.name+'</td><td>'+p.score+'</td><td>'+p.lap+'</td></tr>'});html+='</table><div class="ruleNote">📏 總時間結束，還沒人走完《'+S.targetLap+'》圈，所以比總得分。<b>記住：先走完《'+S.targetLap+'》圈，或是在總時間結束時分數最高的人獲勝喔！</b></div>';document.getElementById('rankTable').innerHTML=html;show('rank')}
-function togglePause(){if(!document.getElementById('game').classList.contains('on')&&!S.paused)return;S.paused=!S.paused;document.getElementById('pauseModal').classList.toggle('on',S.paused);document.getElementById('pauseBtn').textContent=S.paused?'▶ 繼續':'⏸ 暫停'}
-function backToSetup(){if(!confirm('回設定頁會中斷目前遊戲，確定嗎？'))return;S.over=true;stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));stopQTimer();S.paused=false;S.clockStarted=false;document.getElementById('timerBar').style.display='none';document.getElementById('pauseModal').classList.remove('on');document.getElementById('orderModal').classList.remove('on');document.getElementById('pauseBtn').textContent='⏸ 暫停';show('setup')}
+function togglePause(){if(!document.getElementById('game').classList.contains('on')&&!S.paused)return;S.paused=!S.paused;document.getElementById('pauseModal').classList.toggle('on',S.paused);document.getElementById('pauseBtn').textContent=S.paused?'▶ 繼續':'⏸ 暫停';if(S.paused)stopBgm();else startBgm()}
+function backToSetup(){if(!confirm('回設定頁會中斷目前遊戲，確定嗎？'))return;S.over=true;stopBgm();stopTimer();stopQTimer();document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));stopQTimer();S.paused=false;S.clockStarted=false;document.getElementById('timerBar').style.display='none';document.getElementById('pauseModal').classList.remove('on');document.getElementById('orderModal').classList.remove('on');document.getElementById('pauseBtn').textContent='⏸ 暫停';show('setup')}
 const CODEX_SAMPLE = "課室大富翁題庫範本（小四適用，以下50題，題庫可自行加到上百題）\n每題三行＋---分隔，複選答案連寫（如AC）\n題目格＝總格－機會－命運－起點（例36格、2機會3命運→31題）；走到題目格才抽題，同輪不重複，全出過後重洗\n\n【題】4個萬、8個千、5個百、3個十和7個一合起來是多少？\n【選】A.48537 B.73584 C.35847 D.74853\n【答】A\n---\n【題】摩托車售價「九萬三千七百九十八」元是？\n【選】A.93798 B.89937 C.37989 D.93978\n【答】A\n---\n【題】下面哪些是5的倍數？（複選）\n【選】A.15 B.22 C.30 D.41\n【答】AC\n---\n【題】7×8＝？\n【選】A.54 B.56 C.63 D.48\n【答】B\n---\n【題】下面哪些是偶數？（複選）\n【選】A.12 B.35 C.40 D.57\n【答】AC\n---\n【題】過馬路時看到行人紅燈，應該怎麼做？\n【選】A.停下來等綠燈 B.沒車就快跑過去 C.邊看手機邊走 D.直接衝過去\n【答】A\n---\n【題】教室裡遇到地震，哪些做法是對的？（複選）\n【選】A.躲到桌下抓緊桌腳 B.立刻搭電梯下樓 C.推擠衝出教室 D.遠離窗戶和掉落物\n【答】AD\n---\n【題】哪些時候一定要把手洗乾淨？（複選）\n【選】A.吃東西前 B.上完廁所後 C.打完球、玩完遊具後 D.都不用洗也沒關係\n【答】ABC\n---\n【題】《論語》「學而時習之」的下一句是什麼？\n【選】A.不亦說乎 B.不亦苦乎 C.不亦遠乎 D.不亦難乎\n【答】A\n---\n【題】李白《靜夜思》「舉頭望明月」的下一句是什麼？\n【選】A.低頭思故鄉 B.抬頭看太陽 C.出門找朋友 D.回家吃晚餐\n【答】A\n---\n【題】下面哪些是十二生肖裡有的動物？（複選）\n【選】A.鼠 B.龍 C.貓 D.虎\n【答】ABD\n---\n【題】1小時等於幾分鐘？\n【選】A.60 B.100 C.90 D.30\n【答】A\n---\n【題】正方形有幾個直角？\n【選】A.3 B.4 C.2 D.5\n【答】B\n---\n【題】端午節有哪些傳統習俗？（複選）\n【選】A.吃粽子 B.划龍舟 C.賞月吃月餅 D.立蛋、掛香包\n【答】ABD\n---\n【題】哪些是節約用水的好做法？（複選）\n【選】A.刷牙時關水龍頭 B.用洗米水澆花 C.一直開著水龍頭玩水 D.抹肥皂時先關水\n【答】ABD\n---\n【題】18顆糖平分給3人，每人分到幾顆？\n【選】A.9 B.6 C.5 D.8\n【答】B\n---\n【題】9×6＝？\n【選】A.54 B.45 C.63 D.56\n【答】A\n---\n【題】48÷6＝？\n【選】A.7 B.8 C.9 D.6\n【答】B\n---\n【題】下面哪些是3的倍數？（複選）\n【選】A.9 B.14 C.21 D.25\n【答】AC\n---\n【題】長5公分、寬3公分的長方形，周長是多少？\n【選】A.16公分 B.15公分 C.8公分 D.14公分\n【答】A\n---\n【題】1公斤等於幾公克？\n【選】A.1000 B.100 C.10 D.500\n【答】A\n---\n【題】下面哪個分數最大？\n【選】A.1/2 B.1/3 C.1/4 D.1/5\n【答】A\n---\n【題】三角形有幾個邊？\n【選】A.3個 B.4個 C.5個 D.6個\n【答】A\n---\n【題】遇到火災時，哪些做法是對的？（複選）\n【選】A.走安全梯逃生 B.搭電梯下樓 C.用濕毛巾摀住口鼻 D.躲進廁所鎖門不出來\n【答】AC\n---\n【題】哪些是健康的早餐組合？（複選）\n【選】A.牛奶、雞蛋、麵包 B.可樂、薯條 C.水果、燕麥 D.只喝一杯糖水\n【答】AC\n---\n【題】下面哪些垃圾可以回收？（複選）\n【選】A.寶特瓶 B.廢紙 C.廚餘 D.玻璃瓶\n【答】ABD\n---\n【題】夏天在操場中暑了，第一步該怎麼做？\n【選】A.到陰涼處休息並補充水分 B.繼續跑步流汗 C.直接沖冰水 D.躺在太陽下曬\n【答】A\n---\n【題】中秋節家家戶戶會吃什麼應景？\n【選】A.月餅 B.粽子 C.湯圓 D.年糕\n【答】A\n---\n【題】「床前明月光」是誰的詩？\n【選】A.李白 B.杜甫 C.白居易 D.蘇軾\n【答】A\n---\n【題】下面哪些是四季的名稱？（複選）\n【選】A.春 B.夏 C.秋 D.冬\n【答】ABCD\n---\n【題】25＋37＝？\n【選】A.62 B.52 C.72 D.42\n【答】A\n---\n【題】100－45＝？\n【選】A.55 B.45 C.65 D.35\n【答】A\n---\n【題】看到行人綠燈亮了，表示什麼？\n【選】A.行人可以通行 B.行人不能走 C.車子可以撞人 D.大家原地不動\n【答】A\n---\n【題】哪些是保護眼睛的好習慣？（複選）\n【選】A.看書保持約30公分 B.躺著看書 C.多看遠方和綠色植物 D.長時間打電動不停\n【答】AC\n---\n【題】端午節是為了紀念誰？\n【選】A.屈原 B.孔子 C.岳飛 D.鄭成功\n【答】A\n---\n【題】成語「守株待兔」是什麼意思？\n【選】A.空等待、不努力 B.很勤勞種田 C.兔子很可愛 D.農夫力氣大\n【答】A\n---\n【題】1天有幾小時？\n【選】A.24 B.12 C.48 D.60\n【答】A\n---\n【題】時鐘走到3點整，時針和分針會形成什麼角？\n【選】A.直角 B.銳角 C.鈍角 D.平角\n【答】A\n---\n【題】哪些是保護牙齒的好做法？（複選）\n【選】A.早晚刷牙 B.少吃糖果餅乾 C.用牙齒咬開瓶蓋 D.定期看牙醫\n【答】ABD\n---\n【題】清明節大家通常會去做什麼？\n【選】A.掃墓祭祖 B.划龍舟 C.賞月 D.放鞭炮過年\n【答】A\n---\n【題】2000＋3500＝？\n【選】A.5500 B.4500 C.5000 D.6000\n【答】A\n---\n【題】過馬路應該走哪裡最安全？\n【選】A.斑馬線 B.車陣中間 C.高速公路上 D.哪裡都一樣\n【答】A\n---\n【題】「春眠不覺曉」的下一句是什麼？\n【選】A.處處聞啼鳥 B.低頭思故鄉 C.粒粒皆辛苦 D.上山打老虎\n【答】A\n---\n【題】哪些是省電的好做法？（複選）\n【選】A.隨手關燈 B.冷氣調26度以上 C.電視不看也不關 D.大白天還開大燈\n【答】AB\n---\n【題】一包餅乾24片，4人平分，每人幾片？\n【選】A.5 B.6 C.7 D.8\n【答】B\n---\n【題】十二生肖中排第一的是哪一種動物？\n【選】A.鼠 B.牛 C.虎 D.龍\n【答】A\n---\n【題】預防感冒，哪些做法是對的？（複選）\n【選】A.勤洗手 B.人多時戴口罩 C.跟感冒的人共用杯子 D.多喝水、多休息\n【答】ABD\n---\n【題】邊長4公分的正方形，面積是多少？\n【選】A.16平方公分 B.8平方公分 C.12平方公分 D.20平方公分\n【答】A\n---\n【題】七夕的傳說跟哪一對人物有關？\n【選】A.牛郎和織女 B.梁山伯和祝英台 C.白蛇和許仙 D.嫦娥和后羿\n【答】A\n---\n【題】哪些是良好的閱讀習慣？（複選）\n【選】A.坐姿端正 B.光線充足 C.邊走路邊看書 D.每30分鐘休息一下\n【答】ABD\n";
 // Visual/layout layer. The reference game's scoring, decks, draws and turn rules remain authoritative.
 let gameVersion=0;
@@ -409,6 +470,16 @@ function geometry(n,W,H){
   for(let i=0;i<s.left;i++)positions.push({x:x0,y:y1-(y1-y0)*(i+1)/(s.left+1)});
   return {w,h,positions,insetX:pad+w+12,insetY:pad+h+12};
 }
+function fitGameBlock(panel){
+  if(!panel||!panel.clientHeight)return;
+  panel.classList.remove('panel-fit-tight');panel.style.setProperty('--fit-scale','1');panel.style.zoom='1';
+  const fits=()=>panel.scrollHeight<=panel.clientHeight+1&&panel.scrollWidth<=panel.clientWidth+1;
+  for(let scale=1;scale>=.78&&!fits();scale-=.04){panel.style.setProperty('--fit-scale',scale.toFixed(2));panel.style.zoom=scale.toFixed(2)}
+  if(!fits()){panel.classList.add('panel-fit-tight');for(let scale=.76;scale>=.70&&!fits();scale-=.03){panel.style.setProperty('--fit-scale',scale.toFixed(2));panel.style.zoom=scale.toFixed(2)}}
+}
+function fitAllGameBlocks(){
+  requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('#qReview,#resultBanner,#centerBox,.modal.on .box').forEach(fitGameBlock)));
+}
 renderAll = function(){
   if(!S.board.length)return;
   const w=document.getElementById('boardWrap');
@@ -433,6 +504,7 @@ renderAll = function(){
   });
   if(travelling){w.append(travelling);const parked=w.querySelector('.token[data-player="'+travelling.dataset.player+'"]');if(parked)parked.style.visibility='hidden'}
   updateIdlePanels();
+  fitAllGameBlocks();
 };
 function updateIdlePanels(){
   const review=document.getElementById('qReview'),result=document.getElementById('resultBanner');
@@ -445,11 +517,11 @@ updateTurn=function(){baseUpdateTurn();if(!S.over){const p=S.players[S.cur];docu
 const baseRoll=roll;
 roll=function(){if(S.over||S.paused||!S.orderDone||document.getElementById('rollBtn').disabled)return;const face=document.getElementById('diceFace');face.classList.add('rolling');setTimeout(()=>face.classList.remove('rolling'),520);baseRoll()};
 const baseShowResult=showResult;
-showResult=function(t,ok){baseShowResult(t,ok);const b=document.getElementById('resultBanner');b.setAttribute('role','status');b.style.fontSize='clamp(19px,1.6vw,26px)';b.innerHTML='<div class="panelEyebrow">RESULT · 本次挑戰</div><div class="resultMark">'+(ok?'✓':'×')+'</div><div class="resultTitle">'+(ok?'答對了！':'再接再厲！')+'</div><div class="resultDescription">'+esc(t)+'</div><div class="resultFoot">'+(ok?'把這份好表現，帶到下一回合。':'看看左邊的正解，下次再挑戰。')+'</div>'};
+showResult=function(t,ok){baseShowResult(t,ok);const b=document.getElementById('resultBanner');b.setAttribute('role','status');b.style.fontSize='';b.innerHTML='<div class="panelEyebrow">RESULT · 本次挑戰</div><div class="resultMark">'+(ok?'✓':'×')+'</div><div class="resultTitle">'+(ok?'答對了！':'再接再厲！')+'</div><div class="resultDescription">'+esc(t)+'</div><div class="resultFoot">'+(ok?'把這份好表現，帶到下一回合。':'看看左邊的正解，下次再挑戰。')+'</div>';fitAllGameBlocks()};
 const baseShowReview=showReview;
-showReview=function(){baseShowReview();const footer=document.createElement('div');footer.className='reviewFoot';footer.textContent='一起看懂答案，再開始下一回合。';document.getElementById('qReview').append(footer)};
+showReview=function(){baseShowReview();const footer=document.createElement('div');footer.className='reviewFoot';footer.textContent='一起看懂答案，再開始下一回合。';document.getElementById('qReview').append(footer);fitAllGameBlocks()};
 const baseOpenQ=openQ;
-openQ=function(cell){baseOpenQ(cell);document.querySelectorAll('#qOpts .opt').forEach(b=>{b.setAttribute('aria-pressed','false');const click=b.onclick;b.onclick=function(){click.call(this);document.querySelectorAll('#qOpts .opt').forEach(o=>o.setAttribute('aria-pressed',o.classList.contains('sel')))}})};
+openQ=function(cell){baseOpenQ(cell);document.querySelectorAll('#qOpts .opt').forEach(b=>{b.setAttribute('aria-pressed','false');const click=b.onclick;b.onclick=function(){click.call(this);document.querySelectorAll('#qOpts .opt').forEach(o=>o.setAttribute('aria-pressed',o.classList.contains('sel')))}});fitAllGameBlocks()};
 const center=document.getElementById('centerBox');
 const turnLabel=document.createElement('div');turnLabel.className='turnEyebrow';turnLabel.textContent='YOUR TURN · 換你出發';center.prepend(turnLabel);
 const rule=document.createElement('div');rule.className='boardRule';rule.textContent='擲骰子 → 逐格前進 → 開啟挑戰';center.append(rule);
@@ -488,7 +560,7 @@ roll=function(){
   if(S.over||S.paused||!S.orderDone||document.getElementById('rollBtn').disabled)return;
   hideResult();document.getElementById('rollBtn').disabled=true;
   if(S.timeOn&&!S.clockStarted){S.clockStarted=true;S.timerId=setInterval(tick,1000);renderTimer()}
-  const value=1+Math.floor(Math.random()*6),mode=document.getElementById('diceMode').value;
+  const value=1+Math.floor(Math.random()*6),mode=document.getElementById('diceMode').value;playSfx(mode==='spin'?'spin':'roll');
   const face=makeRollFace(mode);face.dataset.rolling='true';msg(mode==='spin'?'轉盤旋轉中，看看會停在哪個數字！':'骰子翻滾中，看看會擲出幾點！');
   const cube=face.querySelector('.diceCube'),wheel=face.querySelector('.numberWheel');
   const rotations={1:[0,0],2:[0,-90],3:[0,-180],4:[0,90],5:[-90,0],6:[90,0]};
@@ -520,6 +592,7 @@ function walkSteps(p,delta,done){
   function step(){
     if(S.over)return;if(moved>=total){done();return}
     msg(p.name+' '+(dir<0?'倒退':'前進')+' '+(moved+1)+' / '+total+' 格');
+    playSfx(dir<0?'back':'move');
     const to=(p.pos+dir+S.size)%S.size;
     travelOne(p,to,dir,()=>{
       moved++;if(dir>0&&p.pos===0)p.lap++;renderAll();
@@ -539,11 +612,12 @@ submitQ=function(){
   else if(S.wrongMode==='deduct'){p.score=Math.max(0,p.score-S.wrongVal);showResult('❌ 答錯扣'+S.wrongVal+'（正解'+wt+'，你選'+(got||'未選')+'）',false)}
   else if(S.wrongMode==='back'){retreat=Math.min(p.pos,Math.max(0,Math.trunc(S.wrongVal)));showResult('❌ 答錯倒退'+S.wrongVal+'格（正解'+wt+'）',false)}
   else showResult('❌ 答錯不加分（正解'+wt+'，你選'+(got||'未選')+'）',false);
+  playSfx(got===want&&got!==''?'correct':'wrong');
   showReview();renderAll();
   if(retreat>0)gameDelay(()=>walkSteps(p,-retreat,()=>gameDelay(next,700)),1000);else gameDelay(next,1600);
 };
 const startBeforeMotion=startGame;
-startGame=function(){startBeforeMotion();makeRollFace(document.getElementById('diceMode').value)};
+startGame=function(){startBeforeMotion();makeRollFace(document.getElementById('diceMode').value);if(S.board.length&&!S.over){startBgm();playSfx('start')}};
 function rollActionName(){return document.getElementById('diceMode').value==='spin'?'轉轉盤':'擲骰子'}
 function syncRollLabels(){const action=rollActionName();document.getElementById('rollBtn').textContent=action;document.querySelector('.boardRule').textContent=action+' → 逐格前進 → 開啟挑戰'}
 
