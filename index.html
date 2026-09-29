@@ -624,9 +624,9 @@ function syncRollLabels(){const action=rollActionName();document.getElementById(
 // Comeback edition: rank snapshots, bounded draws, and explicit turn state.
 const recoverySettings=document.createElement('div');
 recoverySettings.className='row';
-recoverySettings.innerHTML='<div><label for="recoveryEnabled">翻盤機制</label><select id="recoveryEnabled"><option value="on">開啟落後加成</option><option value="off">關閉</option></select></div><div><label for="facilityEnabled">監獄／醫院格</label><select id="facilityEnabled"><option value="off">不設置</option><option value="on">設置一格（棋盤中間）</option></select></div><div><label for="progressGap">進度落後門檻（步）</label><input id="progressGap" type="number" min="1" value="8"></div><div><label for="scoreGap">分數落後門檻（分）</label><input id="scoreGap" type="number" min="1" value="300"></div><p class="small" style="grid-column:1/-1">進度最後且距領先者達自訂步數，或最低分且距最高分達自訂分差，才啟用加成。骰子／轉盤永遠1～6步；六步內的機會／命運合計增加10個百分點，平均分給各特殊落點，僅從題目格移出機率，不指定最近格、不額外加走。監獄／醫院、起點與抵達終點的骰率不變；沒有可調整落點則正常擲骰。翻牌當下仍符合門檻：50%抽專屬翻盤牌，追近後恢復普通規則。醫院牌仍20%；探訪同格受困者各付50分，可扣成負分。</p>';
+recoverySettings.innerHTML='<div><label for="recoveryEnabled">翻盤機制</label><select id="recoveryEnabled"><option value="on">開啟落後加成</option><option value="off">關閉</option></select></div><div><label for="facilityEnabled">監獄／醫院格</label><select id="facilityEnabled"><option value="off">不設置</option><option value="on">設置一格（棋盤中間）</option></select></div><div><label for="progressGap">進度落後門檻（步）</label><input id="progressGap" type="number" min="1" value="8"></div><div><label for="scoreGap">分數落後門檻（分）</label><input id="scoreGap" type="number" min="1" value="300"></div><p class="small" style="grid-column:1/-1">尚未有人相對第一名落後達門檻時，所有人每一點都是 1/6，完全公平。任何玩家只要相對第一名落後達指定步數，或相對最高分落後達指定分數，就會啟動追趕：4／5／6 步為 50%／20%／10%，1～3 步合計20%。只要有人啟動追趕，進度第一名則改為 1／2／3／4／5／6 步 = 40%／25%／15%／10%／5%／5%；若第一名抽到倒楣事件，之後自己的兩次行動恢復正常公平，才可能再次受影響。落後者的機會／命運較常抽到翻盤結果；領先者較常抽到倒退、扣分或醫院／監獄。骰子／轉盤永遠只會走1～6步。</p>';
 document.querySelector('#setup .card').append(recoverySettings);
-const facilityRule=document.createElement('p');facilityRule.className='small';facilityRule.textContent='監獄／醫院牌：從該格前8格（含）到棋盤最後一格，所有機會／命運格每次均有20%機率。例如設在第18格，第10格起適用；每圈依目前格子重新判斷。';recoverySettings.append(facilityRule);facilityRule.style.gridColumn='1/-1';
+const facilityRule=document.createElement('p');facilityRule.className='small';facilityRule.textContent='監獄／醫院牌：從該格前8格（含）到棋盤最後一格，機會／命運格才可能觸發。一般為20%；領先者壓力生效時為35%，落後追趕者為10%。未開啟落後加成時一律使用一般規則。';recoverySettings.append(facilityRule);facilityRule.style.gridColumn='1/-1';
 const recoveryNotice=document.createElement('div');recoveryNotice.id='recoveryNotice';
 recoveryNotice.style.cssText='padding:10px 16px;background:#fff2ce;color:#503b17;font-size:18px;line-height:1.5;border-radius:12px;margin-bottom:10px;white-space:pre-wrap';
 recoveryNotice.setAttribute('role','status');recoveryNotice.hidden=true;
@@ -637,38 +637,27 @@ document.body.append(recoveryModal);
 function progressOf(p){return p.lap*S.size+p.pos}
 function progressRanks(){return S.players.map((p,i)=>({p,i})).sort((a,b)=>progressOf(b.p)-progressOf(a.p)||a.i-b.i).map(x=>x.p)}
 function rankFlags(p){
-  const distances=S.players.map(progressOf),scores=S.players.map(x=>x.score);
-  return {last:S.players.length>1&&Math.min(...distances)<Math.max(...distances)&&progressOf(p)===Math.min(...distances),low:S.players.length>1&&Math.min(...scores)<Math.max(...scores)&&p.score===Math.min(...scores),high:S.players.length>1&&Math.min(...scores)<Math.max(...scores)&&p.score===Math.max(...scores)};
+  const distances=S.players.map(progressOf),scores=S.players.map(x=>x.score),topProgress=Math.max(...distances),topScore=Math.max(...scores);
+  return {leader:S.players.length>1&&progressOf(p)===topProgress,topProgress,topScore};
 }
 function randomInt(n){return 1+Math.floor(Math.random()*n)}
 function comebackEligibility(p){
   const flags=rankFlags(p);
-  const farBehind=flags.last&&Math.max(...S.players.map(progressOf))-progressOf(p)>=(S.progressGap||8);
-  const scoreBehind=flags.low&&Math.max(...S.players.map(x=>x.score))-p.score>=(S.scoreGap||300);
+  const farBehind=flags.topProgress-progressOf(p)>=(S.progressGap||8);
+  const scoreBehind=flags.topScore-p.score>=(S.scoreGap||300);
   return {movement:!!S.recovery&&farBehind,score:!!S.recovery&&scoreBehind};
 }
+function anyPlayerNeedsCatchup(except){return S.players.some(p=>p!==except&&(comebackEligibility(p).movement||comebackEligibility(p).score))}
+function leaderPressure(p){return !!S.recovery&&rankFlags(p).leader&&anyPlayerNeedsCatchup(p)&&!(p.leaderCooldown>0)}
 function comebackWeights(p){
-  const weights=Array(6).fill(1/6);
   const eligible=comebackEligibility(p);
-  if(!eligible.movement&&!eligible.score)return weights;
-  const special=[],questions=[];
-  for(let d=1;d<=6;d++){
-    // Finish, start and facility probabilities are never changed.
-    if(progressOf(p)+d>=S.targetLap*S.size)continue;
-    const type=S.board[(p.pos+d)%S.size]?.type;
-    if(type==='chance'||type==='fate')special.push(d-1);
-    else if(type==='q')questions.push(d-1);
-  }
-  // A modest TOTAL +10 percentage points, shared by every reachable special.
-  // Transfer only from question cells so detention/visit odds remain natural.
-  if(special.length&&questions.length){
-    special.forEach(i=>weights[i]+=.10/special.length);
-    questions.forEach(i=>weights[i]-=.10/questions.length);
-  }
-  return weights;
+  if(leaderPressure(p))return [.40,.25,.15,.10,.05,.05];
+  if(eligible.movement||eligible.score)return [.10,.06,.04,.50,.20,.10];
+  return Array(6).fill(1/6);
 }
 function comebackRoll(p){
   const weights=comebackWeights(p);let draw=Math.random();
+  if(p.leaderCooldown>0)p.leaderCooldown--;
   for(let i=0;i<weights.length;i++){draw-=weights[i];if(draw<0)return i+1}
   return 6; // Floating-point rounding only; all rolls stay within 1–6.
 }
@@ -680,14 +669,14 @@ function facilityEligible(p){
     ['chance','fate'].includes(S.board[p.pos]?.type);
 }
 function recoveryCard(p){
-  if(facilityEligible(p)&&Math.random()<.2)return {kind:'facility'};
-  const e=comebackEligibility(p),factor=facilityEligible(p)?.8:1;
-  // One shared 50% comeback bucket; detention is a separate 20% bucket.
-  if((e.movement||e.score)&&Math.random()<.5/factor){
-    const movement=e.movement&&(!e.score||Math.random()<.5);
-    return {kind:'normal',movement,score:!movement,wealth:false};
+  const e=comebackEligibility(p),pressure=leaderPressure(p);
+  if(facilityEligible(p)){
+    const facilityRate=pressure?.35:(e.movement||e.score)?.10:.20;
+    if(Math.random()<facilityRate){if(pressure)p.leaderCooldown=2;return {kind:'facility'}}
   }
-  return {kind:'normal',movement:false,score:false,wealth:S.recovery&&rankFlags(p).high&&Math.random()<.2};
+  if(pressure&&Math.random()<.70){p.leaderCooldown=2;return {kind:'leaderBad'}}
+  if((e.movement||e.score)&&Math.random()<.70)return {kind:'normal',movement:e.movement,score:e.score&&(!e.movement||Math.random()<.35),wealth:false};
+  return {kind:'normal',movement:false,score:false,wealth:false};
 }
 const buildBeforeRecovery=buildBoard;
 buildBoard=function(n,c,f){
@@ -708,7 +697,7 @@ startGame=function(){
   S.progressGap=Math.max(1,Number(document.getElementById('progressGap').value)||8);
   S.scoreGap=Math.max(1,Number(document.getElementById('scoreGap').value)||300);
   startBeforeRecovery();
-  S.players.forEach(p=>{p.skipTurns=0;p.turnsTaken=0;p.detained=false});
+  S.players.forEach(p=>{p.skipTurns=0;p.turnsTaken=0;p.detained=false;p.leaderCooldown=0});
 };
 const renderBeforeRecovery=renderAll;
 renderAll=function(){renderBeforeRecovery();
@@ -773,11 +762,20 @@ function scoreRecoveryPool(p){
   return pool;
 }
 const flipBeforeRecovery=flipCard;
+function leaderBadCard(){
+  const deck=S.currentCF==='chance'?CHANCE:FATE;
+  const backwards=deck.filter(c=>c.moves&&c.t.includes('後退'));
+  const scoreLoss=deck.filter(c=>!c.moves&&c.t.includes('扣'));
+  // Backward cards receive two shares, so a pressured leader is more likely to lose steps than points.
+  const pool=[...backwards,...backwards,...scoreLoss];
+  return pool[randomInt(pool.length)-1];
+}
 flipCard=function(){
   if(S.over||S.paused||document.getElementById('cfBtn').style.display==='none')return;
   const p=S.players[S.cur],card=recoveryCard(p);
+  if(card.kind==='leaderBad')card.forced=leaderBadCard();
   if(card.kind==='normal'&&!card.movement&&!card.score&&!card.wealth){flipBeforeRecovery();return}
-  document.getElementById('cfBtn').style.display='none';document.getElementById('cfText').textContent=card.kind==='facility'?'醫院／監獄通知':card.wealth?'均富卡':'翻盤機會！';document.getElementById('flipBox').classList.add('go');playSfx(S.currentCF);
+  document.getElementById('cfBtn').style.display='none';document.getElementById('cfText').textContent=card.kind==='facility'?'醫院／監獄通知':card.kind==='leaderBad'?card.forced.t:card.wealth?'均富卡':'翻盤機會！';document.getElementById('flipBox').classList.add('go');playSfx(S.currentCF);
   gameDelay(()=>{
     document.getElementById('cfModal').classList.remove('on');
     if(card.kind==='facility'){
@@ -785,6 +783,11 @@ flipCard=function(){
       p.pos=S.facilityIndex;p.skipTurns=(p.skipTurns||0)+2;p.detained=true;
       const message=p.name+'：'+reasons[randomInt(reasons.length)-1]+'。移到醫院／監獄，暫停兩次；恢復行動時扣150分（可扣成負分）。';announceRecovery(message);
       recoveryDialog('醫院／監獄卡',message+'\n天數與費用僅為遊戲規則。',next);return;
+    }
+    if(card.kind==='leaderBad'){
+      const c=card.forced;S.extraTurn=false;c.do(p);
+      const message=p.name+' 領先壓力：'+c.t+'。接下來自己的兩次行動恢復完全公平。';announceRecovery(message);
+      if(S.over)return;if(p.lap>=S.targetLap){endGame(p);return}if(S.extraTurn){S.extraTurn=false;updateTurn();return}if(!c.moves)next();return;
     }
     if(card.wealth){S.players.forEach(x=>x.score=p.score);const message='均富卡！所有角色的分數都變成 '+p.score+' 分。';announceRecovery(message);recoveryDialog('均富卡',message,next);return}
     const finish=extra=>{if(extra){renderAll();updateTurn()}else next()};
