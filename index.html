@@ -600,8 +600,10 @@ function walkSteps(p,delta,done){
       // previously counted lap, otherwise a later forward crossing can win too early.
       if(dir>0&&p.pos===0)p.lap++;
       // With one-cell steps, arriving at the final cell while moving backwards
-      // means the player crossed the start in reverse.
-      else if(dir<0&&p.pos===S.size-1)p.lap=Math.max(0,p.lap-1);
+      // means the player crossed the start in reverse. Keep signed lap progress:
+      // a player who first moves backwards must earn that distance back before
+      // their next forward crossing can count as a completed lap.
+      else if(dir<0&&p.pos===S.size-1)p.lap--;
       renderAll();
       if(dir>0&&p.lap>=S.targetLap){msg(p.name+' 完成 '+S.targetLap+' 圈！');gameDelay(()=>endGame(p),600);return}
       gameDelay(step,150);
