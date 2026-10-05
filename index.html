@@ -106,7 +106,7 @@ label{font-size:15px;font-weight:800;color:#435367;margin:10px 0 6px}input,selec
 .pchip.cur{background:#e4f6e9;border-color:#338461;box-shadow:0 3px 0 #33846140}.pchip.cur:after{content:'本回合';position:absolute;right:8px;top:8px;background:#236649;color:white;border-radius:6px;padding:2px 6px;font-size:11px}.pchipName{padding-right:46px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pchipStats{display:flex;justify-content:space-between;gap:6px}.sc{color:#087342}.lp{color:#ad480a}.lapTrack{height:5px;background:#d6e5dc;border-radius:9px;margin-top:6px;overflow:hidden}.lapTrack i{display:block;height:100%;background:#3d9271;border-radius:9px;transition:width .4s}
 #boardWrap{max-width:none;min-height:510px;height:calc(100dvh - 200px);border:2px solid #c1d4cf;border-radius:24px;background:#e9f1e8;box-shadow:inset 0 0 0 7px #f7faf1;overflow:hidden}
 .cell{padding:5px 3px;border-radius:13px;border:2px solid #fff;box-shadow:0 4px 0 #52635420;overflow:hidden;color:#20394b;gap:3px;transition:background .2s,border-color .2s;line-height:1.15}
-.cell.start{background:#ffe2a0;color:#6a4610}.cell.q{background:#d4eaf7;color:#254d6a}.cell.chance{background:#e4d6f6;color:#63438b}.cell.fate{background:#f9d8de;color:#853d53}
+.cell.start{background:#ffe2a0;color:#6a4610}.cell.q{background:#d4eaf7;color:#254d6a}.cell.chance{background:#e4d6f6;color:#63438b}.cell.fate{background:#f9d8de;color:#853d53}.cell.facility{background:#e8f0ed;color:#3b6654}.cell.shop{background:#fff0c8;color:#7a5411}
 .cell.cur{border:3px solid #27785d;box-shadow:0 0 0 3px #ffffff,0 6px 0 #27785d24;background:#f7fff7;z-index:3;animation:tileArrive .3s ease-out}.cellLabel{font-size:inherit;white-space:nowrap}.cellIndex{font-size:11px;font-weight:800;opacity:.7;letter-spacing:1px}.toks{flex-wrap:nowrap;width:100%;min-height:22px;gap:0}.token{margin:0;display:inline-block;min-width:0;text-align:center;line-height:1.1;filter:none}.arrow{font-size:14px;color:#5c8a78;z-index:1}
 #innerStage{position:absolute;display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,.94fr) minmax(0,1fr);gap:12px;align-items:stretch;padding:0}
 #qReview,#resultBanner,#centerBox{position:relative;inset:auto;transform:none;width:auto;max-width:none;min-width:0;max-height:none;z-index:1;margin:0;border:1.5px solid #d4dfe0;border-radius:18px;padding:clamp(10px,1.2vw,20px);box-shadow:0 5px 0 #3048500a;overflow:auto;word-break:break-word}
@@ -153,6 +153,16 @@ label{font-size:15px;font-weight:800;color:#435367;margin:10px 0 6px}input,selec
 #centerBox[data-roll-mode="spin"] #msg{font-size:20px;font-weight:800;min-height:30px;margin-top:8px;line-height:1.4}
 #centerBox[data-roll-mode="spin"] .boardRule{margin-top:8px;padding-top:8px}
 @media(max-height:820px) and (min-width:761px){#centerBox[data-roll-mode="spin"] .diceBig{width:108px;height:108px;margin:6px auto}#centerBox[data-roll-mode="spin"] #msg{font-size:18px}}
+
+/* Keep every central game control in its own layout row.  This prevents the
+   animated die or wheel from covering the roll button on narrow displays. */
+#centerBox{display:grid;grid-template-rows:auto auto auto auto auto auto auto;align-content:center;justify-items:stretch;row-gap:12px}
+#centerBox .turnEyebrow,#centerBox #turnInfo,#centerBox .diceBig,#centerBox #rollBtn,#centerBox #itemBtn,#centerBox #msg,#centerBox .boardRule{margin:0}
+#centerBox .diceBig{justify-self:center;align-self:center;flex:none}
+#centerBox #rollBtn{position:relative;z-index:2}
+#centerBox #msg{min-height:32px}
+@media(max-width:760px){#centerBox{row-gap:8px}#centerBox .diceBig{width:88px;height:88px;font-size:62px;border-radius:20px}#centerBox .diceBig.motionFace{--cube:58px}#centerBox #rollBtn{min-height:52px}}
+@media(max-height:820px) and (min-width:761px){#centerBox{row-gap:7px}#centerBox .diceBig{margin:0 auto}}
 
 /* A game panel never gets its own scrollbar.  Text is measured in JavaScript
    and only reduced in small, readable steps when the current device needs it. */
@@ -202,7 +212,7 @@ table.rank{table-layout:fixed;word-break:break-word}
     </div>
     <div id="chanceInfo" class="small"></div>
     <div class="row">
-      <div><label>答對加幾分</label><input id="scoreOk" type="number" value="100"></div>
+      <div><label>答對得分</label><div class="hint">固定答對 +100 分</div></div>
       <div><label>答錯處罰</label><select id="wrongMode"><option value="none">不加分（不扣）</option><option value="deduct">扣分</option><option value="back">倒退格數</option></select></div>
     </div>
     <div class="row">
@@ -261,7 +271,7 @@ Word 做好後：另存新檔 → 純文字(.txt) → 拖進本工具。
 
 <div id="qModal" class="modal"><div class="box">
   <h3 id="qTitle">題目</h3><div id="qTimer"></div><div id="qStem" style="font-weight:700;margin:8px 0"></div><div id="qOpts"></div>
-  <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="submitQ()">送出答案</button><button class="btn2" onclick="closeQ(true)">跳過（不計分）</button></div>
+  <div style="display:flex;gap:8px;margin-top:10px"><button class="btn" id="qSubmit" onclick="submitQ()" disabled>送出答案</button><button class="btn2" onclick="closeQ(true)">跳過（不計分）</button></div>
 </div></div>
 
 <div id="cfModal" class="modal"><div class="box flip" id="flipBox">
@@ -337,8 +347,8 @@ let w=Math.floor(Math.min(150,topDx-10));let h=Math.floor(Math.min(110,sideDy-10
 w=Math.max(46,w);h=Math.max(40,h);h=Math.min(h,Math.round(w*0.75));
 let fs=Math.max(11,Math.min(20,Math.round(w/7.5)));return{w:w,h:h,fs:fs}}
 let QUESTIONS=[];
-let CHANCE=[{t:'前進 1 格',moves:1,do:p=>moveExtra(p,1)},{t:'前進 2 格',moves:1,do:p=>moveExtra(p,2)},{t:'前進 3 格',moves:1,do:p=>moveExtra(p,3)},{t:'後退 1 格',moves:1,do:p=>moveExtra(p,-1)},{t:'後退 2 格',moves:1,do:p=>moveExtra(p,-2)},{t:'加 10 分',do:p=>{p.score+=10}},{t:'扣 5 分',do:p=>{p.score-=5}},{t:'再擲一次！',do:p=>{S.extraTurn=true}}];
-let FATE=[{t:'後退 1 格（不觸發該格）',moves:1,do:p=>moveExtra(p,-1,true)},{t:'後退 2 格',moves:1,do:p=>moveExtra(p,-2)},{t:'後退 3 格',moves:1,do:p=>moveExtra(p,-3)},{t:'前進 1 格',moves:1,do:p=>moveExtra(p,1)},{t:'前進 2 格',moves:1,do:p=>moveExtra(p,2)},{t:'扣 10 分',do:p=>{p.score-=10}},{t:'加 15 分',do:p=>{p.score+=15}},{t:'加 5 分',do:p=>{p.score+=5}}];
+let CHANCE=[{t:'前進 1 格',moves:1,do:p=>moveExtra(p,1)},{t:'前進 2 格',moves:1,do:p=>moveExtra(p,2)},{t:'前進 3 格',moves:1,do:p=>moveExtra(p,3)},{t:'後退 1 格',moves:1,do:p=>moveExtra(p,-1)},{t:'後退 2 格',moves:1,do:p=>moveExtra(p,-2)},{t:'加 50 分',do:p=>{p.score+=50}},{t:'扣 50 分',do:p=>{p.score-=50}},{t:'再擲一次！',do:p=>{S.extraTurn=true}}];
+let FATE=[{t:'後退 1 格（不觸發該格）',moves:1,do:p=>moveExtra(p,-1,true)},{t:'後退 2 格',moves:1,do:p=>moveExtra(p,-2)},{t:'後退 3 格',moves:1,do:p=>moveExtra(p,-3)},{t:'前進 1 格',moves:1,do:p=>moveExtra(p,1)},{t:'前進 2 格',moves:1,do:p=>moveExtra(p,2)},{t:'扣 50 分',do:p=>{p.score-=50}},{t:'加 50 分',do:p=>{p.score+=50}},{t:'再擲一次！',do:p=>{S.extraTurn=true}}];
 const EMO_POOL=['🐶','🐱','🐰','🦊','🐼','🐨','🐯','🦁','🐸','🐵','🐔','🐧','🦄','🦦','🐢','🐳','🦩','🐬','🦖','🦉'];
 function show(id){document.querySelectorAll('.screen').forEach(e=>e.classList.remove('on'));document.getElementById(id).classList.add('on')}
 function getCounts(){let n=Math.min(36,Math.max(10,+document.getElementById('boardSize').value||12));let c=Math.min(8,Math.max(0,+document.getElementById('chanceCount').value||0));let f=Math.min(8,Math.max(0,+document.getElementById('fateCount').value||0));if(c+f>n-1){c=Math.max(0,n-1-f)}return[n,c,f]}
@@ -369,7 +379,7 @@ return cells}
 function startGame(){parseQText();if(!QUESTIONS.length){alert('請先載入至少1題');show('setup');return}
 let gc=getCounts();let n=gc[0],cc=gc[1],fc=gc[2];
 let needQ=n-cc-fc-1;if(needQ<1){alert('機會＋命運太多，至少要留1格題目');return}
-S.size=n;S.targetLap=+document.getElementById('targetLap').value||2;S.scoreOk=+document.getElementById('scoreOk').value||100;S.wrongMode=document.getElementById('wrongMode').value;S.wrongVal=+document.getElementById('wrongVal').value||5;
+S.size=n;S.targetLap=+document.getElementById('targetLap').value||2;S.scoreOk=100;S.wrongMode=document.getElementById('wrongMode').value;S.wrongVal=+document.getElementById('wrongVal').value||5;
 S.timeOn=document.getElementById('timeMode').value==='on';S.timeLeft=Math.min(30,Math.max(1,+document.getElementById('timeMin').value||10))*60;S.timeUp=false;
 S.qTimeOn=document.getElementById('qTimeMode').value==='on';S.qTimeSec=Math.min(120,Math.max(10,+document.getElementById('qTimeSec').value||30));
 let pc=Math.min(6,Math.max(1,+document.getElementById('pCount').value||2));let names=document.getElementById('pNames').value.split(/[,，]/).map(s=>s.trim());
@@ -413,16 +423,17 @@ function land(){if(S.over)return;let p=S.players[S.cur];let cell=S.board[p.pos];
 if(cell.type==='start'){p.score+=5;msg(p.name+' 回到起點！+5分');renderAll();gameDelay(()=>next(),800);return}
 if(cell.type==='chance'||cell.type==='fate'){openCF(cell.type);return}
 cell.q=drawQ();if(!cell.q){next();return}openQ(cell)}
-function openQ(cell){S.currentSel=new Set();
+function updateSubmitButton(){const button=document.getElementById('qSubmit');if(button)button.disabled=!(S.currentSel&&S.currentSel.size)}
+function openQ(cell){S.currentSel=new Set();updateSubmitButton();
 let disp=shuffle(cell.q.opts.map(function(o){return{v:o.v,ok:o.k}}));
 let L='ABCDEF',want=[];
 disp.forEach(function(d,i){d.k=L[i];if(cell.q.ans.indexOf(d.ok)>=0)want.push(d.k)});
 S.currentQ=cell.q;S.currentDisp=disp;S.currentWant=want;
 document.getElementById('qTitle').textContent=cell.label+(want.length>1?'（複選）':'（單選）');document.getElementById('qStem').textContent=cell.q.stem;
-let box=document.getElementById('qOpts');box.innerHTML='';disp.forEach(function(o){let b=document.createElement('button');b.className='opt';b.textContent=o.k+'. '+o.v;b.onclick=function(){if(S.currentWant.length>1){if(S.currentSel.has(o.k)){S.currentSel.delete(o.k);b.classList.remove('sel')}else{S.currentSel.add(o.k);b.classList.add('sel')}}else{S.currentSel=new Set([o.k]);Array.from(box.children).forEach(function(x){x.classList.remove('sel')});b.classList.add('sel')}};  box.appendChild(b)});
+let box=document.getElementById('qOpts');box.innerHTML='';disp.forEach(function(o){let b=document.createElement('button');b.className='opt';b.textContent=o.k+'. '+o.v;b.onclick=function(){if(S.currentWant.length>1){if(S.currentSel.has(o.k)){S.currentSel.delete(o.k);b.classList.remove('sel')}else{S.currentSel.add(o.k);b.classList.add('sel')}}else{S.currentSel=new Set([o.k]);Array.from(box.children).forEach(function(x){x.classList.remove('sel')});b.classList.add('sel')}updateSubmitButton()};  box.appendChild(b)});
 document.getElementById('qModal').classList.add('on');
 stopQTimer();
-if(S.qTimeOn){S.qTimeLeft=S.qTimeSec;renderQTimer();S.qTimerId=setInterval(function(){if(S.over||S.paused)return;S.qTimeLeft--;if(S.qTimeLeft<=0){stopQTimer();submitQ()}else renderQTimer()},1000)}
+if(S.qTimeOn){S.qTimeLeft=S.qTimeSec;renderQTimer();S.qTimerId=setInterval(function(){if(S.over||S.paused)return;S.qTimeLeft--;if(S.qTimeLeft<=0){stopQTimer();if(S.currentSel.size)submitQ();else closeQ(true)}else renderQTimer()},1000)}
 else{document.getElementById('qTimer').textContent=''}}
 function renderQTimer(){let el=document.getElementById('qTimer');el.textContent='⏱ 作答剩餘 '+S.qTimeLeft+' 秒';el.style.color=S.qTimeLeft<=10?'#dc2626':'#c2416b'}
 function stopQTimer(){if(S.qTimerId){clearInterval(S.qTimerId);S.qTimerId=null}}
@@ -500,7 +511,7 @@ renderAll = function(){
     const d=document.createElement('div');d.className='cell '+cell.type+(S.players[S.cur]?.pos===i?' cur':'')+(g.h<86?' compact':'');d.dataset.index=i;
     Object.assign(d.style,{left:a.x+'px',top:a.y+'px',width:g.w+'px',height:g.h+'px',fontSize:Math.max(14,Math.min(20,g.w/6.6))+'px'});
     const people=S.players.filter(p=>p.pos===i),size=Math.min(g.h<86?20:28,(g.w-24)/(Math.max(people.length,1)*1.3));
-    d.innerHTML='<div class="cellIndex">'+String(i+1).padStart(2,'0')+'</div><div class="cellLabel">'+({start:'🏁',q:'✎',chance:'✦',fate:'🎁'}[cell.type])+' '+cell.label+'</div><div class="toks">'+people.map(p=>'<span class="token" data-player="'+S.players.indexOf(p)+'" style="font-size:'+size+'px">'+p.emo+'</span>').join('')+'</div>';w.append(d);
+    d.innerHTML='<div class="cellIndex">'+String(i+1).padStart(2,'0')+'</div><div class="cellLabel">'+({start:'🏁',q:'✎',chance:'✦',fate:'🎁',facility:'🏥',shop:'🛒'}[cell.type]||'•')+' '+cell.label+'</div><div class="toks">'+people.map(p=>'<span class="token" data-player="'+S.players.indexOf(p)+'" style="font-size:'+size+'px">'+p.emo+'</span>').join('')+'</div>';w.append(d);
   });
   if(travelling){w.append(travelling);const parked=w.querySelector('.token[data-player="'+travelling.dataset.player+'"]');if(parked)parked.style.visibility='hidden'}
   updateIdlePanels();
@@ -524,6 +535,7 @@ const baseOpenQ=openQ;
 openQ=function(cell){baseOpenQ(cell);document.querySelectorAll('#qOpts .opt').forEach(b=>{b.setAttribute('aria-pressed','false');const click=b.onclick;b.onclick=function(){click.call(this);document.querySelectorAll('#qOpts .opt').forEach(o=>o.setAttribute('aria-pressed',o.classList.contains('sel')))}});fitAllGameBlocks()};
 const center=document.getElementById('centerBox');
 const turnLabel=document.createElement('div');turnLabel.className='turnEyebrow';turnLabel.textContent='YOUR TURN · 換你出發';center.prepend(turnLabel);
+const itemButton=document.createElement('button');itemButton.className='btn2';itemButton.id='itemBtn';itemButton.textContent='🎒 無可用回合道具';itemButton.disabled=true;itemButton.onclick=()=>openItemMenu();center.insertBefore(itemButton,document.getElementById('msg'));
 const rule=document.createElement('div');rule.className='boardRule';rule.textContent='擲骰子 → 逐格前進 → 開啟挑戰';center.append(rule);
 function setupRule(){const note=document.querySelector('#setup>.card:last-child .small');note.textContent='題目格採發牌制，同輪不重複；選項每次洗牌。先走完《'+document.getElementById('targetLap').value+'》圈，或是在總時間結束時分數最高的人獲勝喔！'}
 document.getElementById('targetLap').addEventListener('input',setupRule);setupRule();
@@ -556,11 +568,11 @@ function makeRollFace(mode,value=1){
   }
   return face;
 }
-roll=function(){
-  if(S.over||S.paused||!S.orderDone||document.getElementById('rollBtn').disabled)return;
-  hideResult();document.getElementById('rollBtn').disabled=true;
+roll=function(isSecondRoll=false,forcedValue=null){
+  if(S.over||S.paused||!S.orderDone||(!isSecondRoll&&document.getElementById('rollBtn').disabled))return;
+  hideResult();document.getElementById('rollBtn').disabled=true;if(document.getElementById('itemBtn'))document.getElementById('itemBtn').disabled=true;
   if(S.timeOn&&!S.clockStarted){S.clockStarted=true;S.timerId=setInterval(tick,1000);renderTimer()}
-  const value=comebackRoll(S.players[S.cur]),mode=document.getElementById('diceMode').value;playSfx(mode==='spin'?'spin':'roll');
+  const p=S.players[S.cur],value=forcedValue||comebackRoll(p),mode=document.getElementById('diceMode').value;playSfx(mode==='spin'?'spin':'roll');
   const face=makeRollFace(mode);face.dataset.rolling='true';msg(mode==='spin'?'轉盤旋轉中，看看會停在哪個數字！':'骰子翻滾中，看看會擲出幾點！');
   const cube=face.querySelector('.diceCube'),wheel=face.querySelector('.numberWheel');
   const rotations={1:[0,0],2:[0,-90],3:[0,-180],4:[0,90],5:[-90,0],6:[90,0]};
@@ -572,7 +584,8 @@ roll=function(){
   },()=>{
     face.dataset.rolling='false';face.dataset.value=value;face.setAttribute('aria-label',(mode==='spin'?'轉盤結果 ':'擲骰結果 ')+value);
     if(wheel)face.querySelector('.wheelHub').textContent=value;
-    msg((mode==='spin'?'轉盤停在 ':'擲出 ')+value+'，準備前進！');gameDelay(()=>doMove(value),650);
+    msg((forcedValue?'指定為 ':mode==='spin'?'轉盤停在 ':'擲出 ')+value+'，準備前進！');
+    gameDelay(()=>{if(!isSecondRoll&&(p.items?.reroll||0)>0)offerReroll(p,value);else doMove(value)},650);
   },()=>{face.dataset.rolling='false'});
 };
 function travelOne(p,to,dir,done){
@@ -615,6 +628,7 @@ doMove=function(steps){const p=S.players[S.cur];walkSteps(p,steps,()=>gameDelay(
 moveExtra=function(p,delta,noTrigger){walkSteps(p,delta,()=>gameDelay(noTrigger?next:()=>land(true),600))};
 // Wrong-answer retreat preserves the reference rule: stop at zero, do not trigger the destination.
 submitQ=function(){
+  if(!S.currentSel||!S.currentSel.size){updateSubmitButton();return}
   stopQTimer();const p=S.players[S.cur],got=Array.from(S.currentSel).sort().join(''),want=(S.currentWant||[]).slice().sort().join(''),wt=wantText();
   document.getElementById('qModal').classList.remove('on');let retreat=0;
   if(got===want&&got!==''){p.score+=S.scoreOk;showResult('✅ '+p.name+' 答對 +'+S.scoreOk+'（答案'+wt+'）',true)}
@@ -633,7 +647,7 @@ function syncRollLabels(){const action=rollActionName();document.getElementById(
 // Comeback edition: rank snapshots, bounded draws, and explicit turn state.
 const recoverySettings=document.createElement('div');
 recoverySettings.className='row';
-recoverySettings.innerHTML='<div><label for="recoveryEnabled">翻盤機制</label><select id="recoveryEnabled"><option value="on">開啟落後加成</option><option value="off">關閉</option></select></div><div><label for="facilityEnabled">監獄／醫院格</label><select id="facilityEnabled"><option value="off">不設置</option><option value="on">設置一格（棋盤中間）</option></select></div><div><label for="progressGap">進度落後門檻（步）</label><input id="progressGap" type="number" min="1" value="8"></div><div><label for="scoreGap">分數落後門檻（分）</label><input id="scoreGap" type="number" min="1" value="300"></div><p class="small" style="grid-column:1/-1">尚未有人相對第一名落後達門檻時，所有人每一點都是 1/6，完全公平。任何玩家只要相對第一名落後達指定步數，或相對最高分落後達指定分數，就會啟動追趕：4／5／6 步為 50%／20%／10%，1～3 步合計20%。只要有人啟動追趕，進度第一名則改為 1／2／3／4／5／6 步 = 40%／25%／15%／10%／5%／5%；若第一名抽到倒楣事件，之後自己的兩次行動恢復正常公平，才可能再次受影響。落後者的機會／命運較常抽到翻盤結果；領先者較常抽到倒退、扣分或醫院／監獄。骰子／轉盤永遠只會走1～6步。</p>';
+recoverySettings.innerHTML='<div><label for="recoveryEnabled">翻盤機制</label><select id="recoveryEnabled"><option value="on">開啟落後加成</option><option value="off">關閉</option></select></div><div><label for="facilityEnabled">監獄／醫院格</label><select id="facilityEnabled"><option value="off">不設置</option><option value="on">設置一格（棋盤中間）</option></select></div><div><label for="shopEnabled">商店格</label><select id="shopEnabled"><option value="off">不設置</option><option value="on">設置一格</option></select></div><div><label for="facilityTurns">醫院／監獄暫停回合</label><select id="facilityTurns"><option value="1">1 回合</option><option value="2" selected>2 回合</option><option value="3">3 回合</option></select></div><div><label for="facilityEarlyExit">可付分提早離開</label><select id="facilityEarlyExit"><option value="on">開啟</option><option value="off">關閉</option></select></div><div><label for="progressGap">進度落後門檻（步）</label><input id="progressGap" type="number" min="1" value="8"></div><div><label for="scoreGap">分數落後門檻（分）</label><input id="scoreGap" type="number" min="1" value="300"></div><p class="small" style="grid-column:1/-1">商店格可購買功能牌；「全員進醫院／監獄」牌須同時設置醫院／監獄格才可購買。尚未有人相對第一名落後達門檻時，所有人每一點都是 1/6，完全公平。任何玩家只要相對第一名落後達指定步數，或相對最高分落後達指定分數，就會啟動追趕：4／5／6 步為 50%／20%／10%，1～3 步合計20%。只要有人啟動追趕，進度第一名則改為 1／2／3／4／5／6 步 = 40%／25%／15%／10%／5%／5%；落後者抽到翻盤功能牌的機率為 80%，領先者較常抽到倒退、扣分或醫院／監獄。骰子／轉盤永遠只會走1～6步。</p>';
 document.querySelector('#setup .card').append(recoverySettings);
 const facilityRule=document.createElement('p');facilityRule.className='small';facilityRule.textContent='監獄／醫院牌：從該格前8格（含）到棋盤最後一格，機會／命運格才可能觸發。一般為20%；領先者壓力生效時為35%，落後追趕者為10%。未開啟落後加成時一律使用一般規則。';recoverySettings.append(facilityRule);facilityRule.style.gridColumn='1/-1';
 const recoveryNotice=document.createElement('div');recoveryNotice.id='recoveryNotice';
@@ -643,18 +657,89 @@ document.getElementById('game').prepend(recoveryNotice);
 const recoveryModal=document.createElement('div');recoveryModal.className='modal';recoveryModal.id='recoveryModal';
 recoveryModal.innerHTML='<div class="box" style="text-align:center"><h2 id="recoveryTitle"></h2><p id="recoveryDetail" style="font-size:20px;white-space:pre-wrap"></p><div id="recoveryFace" style="font-size:54px;font-weight:900;margin:12px"></div><button class="btn" id="recoveryDraw">擲骰決定</button><button class="btn" id="recoveryContinue" hidden>確認並繼續</button></div>';
 document.body.append(recoveryModal);
+const choiceModal=document.createElement('div');choiceModal.className='modal';choiceModal.id='choiceModal';
+choiceModal.innerHTML='<div class="box" style="text-align:center"><h2 id="choiceTitle"></h2><p id="choiceDetail" style="font-size:20px;line-height:1.6;white-space:pre-wrap"></p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn" id="choiceYes"></button><button class="btn2" id="choiceNo"></button></div></div>';
+document.body.append(choiceModal);
+function choiceDialog(title,text,yesLabel,noLabel,yesEnabled,onYes,onNo){
+  const yes=document.getElementById('choiceYes'),no=document.getElementById('choiceNo'),version=gameVersion;
+  document.getElementById('choiceTitle').textContent=title;document.getElementById('choiceDetail').textContent=text;
+  yes.textContent=yesLabel;no.textContent=noLabel;yes.disabled=!yesEnabled;choiceModal.classList.add('on');
+  yes.onclick=()=>{if(!yesEnabled||version!==gameVersion||S.over)return;choiceModal.classList.remove('on');onYes()};
+  no.onclick=()=>{if(version!==gameVersion||S.over)return;choiceModal.classList.remove('on');onNo()};
+}
+const itemModal=document.createElement('div');itemModal.className='modal';itemModal.id='itemModal';
+itemModal.innerHTML='<div class="box" style="max-width:760px"><h2 id="itemTitle" style="text-align:center"></h2><p id="itemDetail" class="small" style="font-size:16px;text-align:center"></p><div id="itemList" style="display:grid;gap:10px;margin-top:14px"></div><div style="display:flex;justify-content:center;margin-top:16px"><button class="btn2" id="itemClose">離開</button></div></div>';
+document.body.append(itemModal);
+const STORE_ITEMS=[
+  {key:'shield',name:'🛡️ 免死金牌',price:500,detail:'可抵銷一次醫院／監獄牌'},
+  {key:'fixed',name:'🎯 指定點數牌',price:300,detail:'本回合擲／轉前指定 1～6 點'},
+  {key:'reroll',name:'🔄 再擲／轉一次牌',price:300,detail:'第一次落點不生效，從該處再擲／轉一次'},
+  {key:'swapLeader',name:'🔁 與進度第一名交換位置牌',price:800,detail:'擲／轉前使用，交換圈數與位置'},
+  {key:'jailAll',name:'🏥／🔒 全員暫停牌',price:800,detail:'除了自己外，所有玩家進醫院／監獄暫停 2 回合'}
+];
+function itemCount(p,key){return key==='shield'?(p.shields||0):(p.items?.[key]||0)}
+function addItem(p,key){if(key==='shield')p.shields=(p.shields||0)+1;else p.items[key]=(p.items[key]||0)+1}
+function openItemModal(title,detail){document.getElementById('itemTitle').textContent=title;document.getElementById('itemDetail').textContent=detail;itemModal.classList.add('on')}
+function closeItemModal(){itemModal.classList.remove('on')}
+function addItemButton(label,detail,disabled,action){const list=document.getElementById('itemList'),button=document.createElement('button');button.className='btn2';button.disabled=disabled;button.style.textAlign='left';button.innerHTML='<b>'+label+'</b><br><span class="small">'+detail+'</span>';button.onclick=action;list.append(button)}
+function openShop(p){
+  openItemModal('🛒 道具商店',p.name+' 目前有 '+p.score+' 分。可連續選購；按「離開」才會結束此回合。');
+  const list=document.getElementById('itemList');list.innerHTML='';
+  STORE_ITEMS.forEach(item=>{
+    const unavailable=item.key==='jailAll'&&S.facilityIndex<0;
+    const disabled=unavailable||p.score<item.price;
+    const detail=unavailable?'請先在設定中設置醫院／監獄格。':item.detail+'｜'+item.price+' 分｜持有 '+itemCount(p,item.key)+' 張';
+    addItemButton(item.name,detail,disabled,()=>{p.score-=item.price;addItem(p,item.key);renderAll();openShop(p)});
+  });
+  document.getElementById('itemClose').textContent='離開商店，結束回合';document.getElementById('itemClose').onclick=()=>{closeItemModal();next()};
+}
+function chooseFixedRoll(p){
+  openItemModal('🎯 選擇指定點數',p.name+' 使用 1 張指定點數牌後，選擇本回合要走的點數。');
+  const list=document.getElementById('itemList');list.innerHTML='';
+  for(let n=1;n<=6;n++)addItemButton('指定 '+n+' 點','使用後直接前進 '+n+' 格。',false,()=>{p.items.fixed--;closeItemModal();renderAll();roll(false,n)});
+  document.getElementById('itemClose').textContent='暫不使用';document.getElementById('itemClose').onclick=()=>openItemMenu(p);
+}
+function useSwapLeader(p){
+  const leader=progressRanks()[0];if(leader===p)return;
+  p.items.swapLeader--;const pos=p.pos,lap=p.lap;p.pos=leader.pos;p.lap=leader.lap;leader.pos=pos;leader.lap=lap;
+  announceRecovery(p.name+' 使用交換位置牌，與進度第一名 '+leader.name+' 交換了圈數與位置。');renderAll();openItemMenu(p);
+}
+function useJailAll(p){
+  const others=S.players.filter(other=>other!==p);if(S.facilityIndex<0||!others.length)return;
+  p.items.jailAll--;others.forEach(other=>{other.pos=S.facilityIndex;other.skipTurns=(other.skipTurns||0)+2;other.detained=true});
+  announceRecovery(p.name+' 使用全員暫停牌，其他玩家都移到醫院／監獄並各暫停 2 回合。');renderAll();openItemMenu(p);
+}
+function openItemMenu(p=S.players[S.cur]){
+  openItemModal('🎒 回合道具',p.name+' 的回合開始前可使用下列道具，再按「'+rollActionName()+'」。');
+  const list=document.getElementById('itemList');list.innerHTML='';const leader=progressRanks()[0];
+  addItemButton('🎯 指定點數牌 ×'+itemCount(p,'fixed'),'選擇本回合的 1～6 點。',!itemCount(p,'fixed'),()=>chooseFixedRoll(p));
+  addItemButton('🔁 交換位置牌 ×'+itemCount(p,'swapLeader'),'與目前進度第一名交換圈數與位置。',!itemCount(p,'swapLeader')||leader===p,()=>useSwapLeader(p));
+  addItemButton('🏥／🔒 全員暫停牌 ×'+itemCount(p,'jailAll'),'其他玩家進醫院／監獄，各暫停 2 回合。',!itemCount(p,'jailAll')||S.facilityIndex<0||S.players.length<2,()=>useJailAll(p));
+  addItemButton('🔄 再擲／轉一次牌 ×'+itemCount(p,'reroll'),'擲出第一次點數後才會詢問是否使用。',true,()=>{});
+  addItemButton('🛡️ 免死金牌 ×'+itemCount(p,'shield'),'遇到醫院／監獄牌時才可選擇使用。',true,()=>{});
+  document.getElementById('itemClose').textContent='回到回合，準備'+rollActionName();document.getElementById('itemClose').onclick=closeItemModal;
+}
+function offerReroll(p,value){
+  choiceDialog('要使用再擲／轉一次牌嗎？',p.name+' 第一次得到 '+value+' 點。使用後，第一次落點的題目、機會／命運與功能格都不生效，會從那一格再擲／轉一次。','使用 1 張，再擲／轉一次','保留本次結果',true,()=>{p.items.reroll--;renderAll();walkSteps(p,value,()=>{msg(p.name+' 停在中繼格，立刻再'+rollActionName()+'一次！');gameDelay(()=>roll(true),450)})},()=>doMove(value));
+}
+function syncItemButton(){const button=document.getElementById('itemBtn');if(!button||S.over)return;const p=S.players[S.cur],usable=(p.items?.fixed||0)+(p.items?.swapLeader||0)+(p.items?.jailAll||0);button.disabled=!usable||document.getElementById('rollBtn').disabled;button.textContent=usable?'🎒 使用道具':'🎒 無可用回合道具'}
+const updateTurnBeforeItems=updateTurn;
+updateTurn=function(){updateTurnBeforeItems();syncItemButton()};
 function progressOf(p){return p.lap*S.size+p.pos}
 function progressRanks(){return S.players.map((p,i)=>({p,i})).sort((a,b)=>progressOf(b.p)-progressOf(a.p)||a.i-b.i).map(x=>x.p)}
 function rankFlags(p){
   const distances=S.players.map(progressOf),scores=S.players.map(x=>x.score),topProgress=Math.max(...distances),topScore=Math.max(...scores);
-  return {leader:S.players.length>1&&progressOf(p)===topProgress,topProgress,topScore};
+  const progressLeader=S.players.length>1&&progressOf(p)===topProgress;
+  const scoreLeader=S.players.length>1&&p.score===topScore;
+  return {leader:progressLeader||scoreLeader,progressLeader,scoreLeader,topProgress,topScore};
 }
 function randomInt(n){return 1+Math.floor(Math.random()*n)}
 function comebackEligibility(p){
   const flags=rankFlags(p);
+  if(!S.recovery||flags.progressLeader||flags.scoreLeader)return {movement:false,score:false};
   const farBehind=flags.topProgress-progressOf(p)>=(S.progressGap||8);
   const scoreBehind=flags.topScore-p.score>=(S.scoreGap||300);
-  return {movement:!!S.recovery&&farBehind,score:!!S.recovery&&scoreBehind};
+  return {movement:farBehind,score:scoreBehind};
 }
 function anyPlayerNeedsCatchup(except){return S.players.some(p=>p!==except&&(comebackEligibility(p).movement||comebackEligibility(p).score))}
 function leaderPressure(p){return !!S.recovery&&rankFlags(p).leader&&anyPlayerNeedsCatchup(p)&&!(p.leaderCooldown>0)}
@@ -665,9 +750,9 @@ function comebackWeights(p){
   return Array(6).fill(1/6);
 }
 function comebackRoll(p){
-  const weights=comebackWeights(p);let draw=Math.random();
+  const pressure=leaderPressure(p),weights=comebackWeights(p);let draw=Math.random();
   if(p.leaderCooldown>0)p.leaderCooldown--;
-  for(let i=0;i<weights.length;i++){draw-=weights[i];if(draw<0)return i+1}
+  for(let i=0;i<weights.length;i++){draw-=weights[i];if(draw<0){const value=i+1;if(pressure&&value<=2)p.leaderCooldown=2;return value}}
   return 6; // Floating-point rounding only; all rolls stay within 1–6.
 }
 // Positions are zero-based internally; the board displays position + 1.
@@ -684,34 +769,42 @@ function recoveryCard(p){
     if(Math.random()<facilityRate){if(pressure)p.leaderCooldown=2;return {kind:'facility'}}
   }
   if(pressure&&Math.random()<.70){p.leaderCooldown=2;return {kind:'leaderBad'}}
-  if((e.movement||e.score)&&Math.random()<.70)return {kind:'normal',movement:e.movement,score:e.score&&(!e.movement||Math.random()<.35),wealth:false};
+  if((e.movement||e.score)&&Math.random()<.80)return {kind:'normal',movement:e.movement,score:e.score&&(!e.movement||Math.random()<.35),wealth:false};
   return {kind:'normal',movement:false,score:false,wealth:false};
 }
 const buildBeforeRecovery=buildBoard;
 buildBoard=function(n,c,f){
-  const cells=buildBeforeRecovery(n,c,f);S.facilityIndex=-1;
-  if(document.getElementById('facilityEnabled').value==='on'){
-    const index=Math.floor(n/2),old=cells[index];
+  const cells=buildBeforeRecovery(n,c,f);S.facilityIndex=-1;S.shopIndex=-1;
+  function placeSpecial(index,type,label){
+    const old=cells[index];
     if(old.type!=='q'){const replacement=cells.findIndex((x,i)=>i>0&&i!==index&&x.type==='q');if(replacement>=0)cells[replacement]=old}
-    cells[index]={type:'facility',label:'醫院／監獄'};S.facilityIndex=index;
+    cells[index]={type,label};return index;
+  }
+  if(document.getElementById('facilityEnabled').value==='on')S.facilityIndex=placeSpecial(Math.floor(n/2),'facility','醫院／監獄');
+  if(document.getElementById('shopEnabled').value==='on'){
+    let index=Math.floor(n*.75);if(index===0||index===S.facilityIndex)index=Math.max(1,Math.floor(n*.75)-1);
+    S.shopIndex=placeSpecial(index,'shop','道具商店');
   }
   return cells;
 };
 const startBeforeRecovery=startGame;
 startGame=function(){
   const [n,c,f]=getCounts();
-  if(document.getElementById('facilityEnabled').value==='on'&&n-c-f-2<1){alert('設置醫院／監獄後仍須保留至少1格題目，請減少機會／命運格。');return}
+  const special=(document.getElementById('facilityEnabled').value==='on'?1:0)+(document.getElementById('shopEnabled').value==='on'?1:0);
+  if(n-c-f-1-special<1){alert('設置功能格後仍須保留至少1格題目，請減少機會／命運格。');return}
   document.querySelectorAll('.modal').forEach(m=>m.classList.remove('on'));recoveryNotice.hidden=true;
   S.recovery=document.getElementById('recoveryEnabled').value==='on';
   S.progressGap=Math.max(1,Number(document.getElementById('progressGap').value)||8);
   S.scoreGap=Math.max(1,Number(document.getElementById('scoreGap').value)||300);
+  S.facilityTurns=Math.min(3,Math.max(1,Number(document.getElementById('facilityTurns').value)||2));
+  S.facilityEarlyExit=document.getElementById('facilityEarlyExit').value==='on';
   startBeforeRecovery();
-  S.players.forEach(p=>{p.skipTurns=0;p.turnsTaken=0;p.detained=false;p.leaderCooldown=0});
+  S.players.forEach(p=>{p.skipTurns=0;p.turnsTaken=0;p.detained=false;p.leaderCooldown=0;p.shields=0;p.cfVisits=0;p.items={fixed:0,reroll:0,swapLeader:0,jailAll:0}});
 };
 const renderBeforeRecovery=renderAll;
 renderAll=function(){renderBeforeRecovery();
   const facility=document.querySelector('.cell.facility .cellLabel');if(facility)facility.textContent='🏥／🔒';
-  document.querySelectorAll('.pchip').forEach((el,i)=>{const p=S.players[i];if(p.skipTurns||p.detained){const badge=document.createElement('div');badge.style.cssText='font-size:16px;color:#91344d';badge.textContent=p.skipTurns?'暫停 '+p.skipTurns+' 次':p.detained?'下回合出院／獄':'';el.append(badge)}});
+  document.querySelectorAll('.pchip').forEach((el,i)=>{const p=S.players[i],items=p.items||{};if(p.shields){const shield=document.createElement('div');shield.style.cssText='font-size:16px;color:#176a4b;font-weight:800';shield.textContent='🛡️ 免死金牌 ×'+p.shields;el.append(shield)}const gear=[items.fixed?'🎯'+items.fixed:'',items.reroll?'🔄'+items.reroll:'',items.swapLeader?'🔁'+items.swapLeader:'',items.jailAll?'🏥'+items.jailAll:''].filter(Boolean).join('　');if(gear){const badge=document.createElement('div');badge.style.cssText='font-size:15px;color:#5a5373;font-weight:800';badge.textContent='🎒 '+gear;el.append(badge)}if(p.skipTurns||p.detained){const badge=document.createElement('div');badge.style.cssText='font-size:16px;color:#91344d';badge.textContent=p.skipTurns?'暫停 '+p.skipTurns+' 次':p.detained?'下回合出院／獄':'';el.append(badge)}});
 };
 function announceRecovery(text){recoveryNotice.hidden=false;recoveryNotice.textContent=text;renderAll()}
 function recoveryDialog(title,text,done,max=0,onDraw=null){
@@ -724,12 +817,33 @@ function recoveryDialog(title,text,done,max=0,onDraw=null){
   };
   cont.onclick=()=>{if(version!==gameVersion||S.over||S.paused)return;cont.disabled=true;recoveryModal.classList.remove('on');done();cont.disabled=false};
 }
+function facilityEarlyExitCost(turns){return turns>=3?500:turns===2?300:200}
+function takeDetentionTurn(p){
+  p.skipTurns--;renderAll();
+  recoveryDialog('本回合暫停',p.name+' 本次休息，還剩 '+p.skipTurns+' 次暫停。'+(p.detained&&p.skipTurns===0?' 下個可行動回合支付150分後從醫院／監獄出發。':''),next);
+}
+function askFacilityEarlyExit(p){
+  const cost=facilityEarlyExitCost(p.skipTurns),enough=p.score>=cost;
+  const detail=p.name+' 還要暫停 '+p.skipTurns+' 回合。\n要不要用 '+cost+' 分提早離開醫院／監獄？'+(enough?'\n支付後可立刻從醫院／監獄格擲骰子／轉轉盤。':'\n目前分數不足，這回合必須暫停。');
+  choiceDialog('要提早出院／出獄嗎？',detail,'支付 '+cost+' 分提早離開','本回合暫停',enough,()=>{p.score-=cost;p.skipTurns=0;p.detained=false;p.pos=S.facilityIndex;announceRecovery(p.name+' 支付 '+cost+' 分提早離開醫院／監獄，現在 '+p.score+' 分。');renderAll();updateTurn()},()=>takeDetentionTurn(p));
+}
+function detainAtFacility(p,reason){
+  p.pos=S.facilityIndex;p.skipTurns=(p.skipTurns||0)+S.facilityTurns;p.detained=true;
+  const message=p.name+'：'+reason+'。移到醫院／監獄，暫停 '+S.facilityTurns+' 回合；正常出院／出獄時扣150分（可扣成負分）。';
+  announceRecovery(message);recoveryDialog('醫院／監獄卡',message,next);
+}
+function resolveFacilityCard(p){
+  const reasons=['騎車分心摔倒，住院休息','出門被狗咬，住院觀察','溜冰忘穿護具，住院休息','爬樹扭傷腳，住院休息','遊戲劇情：詐欺被關','遊戲劇情：公然侮辱被關'];
+  const reason=reasons[randomInt(reasons.length)-1];
+  if(!(p.shields||0)){detainAtFacility(p,reason);return}
+  choiceDialog('要使用免死金牌嗎？',p.name+' 抽到醫院／監獄牌：'+reason+'。\n你有 '+p.shields+' 張免死金牌，可以選擇使用一張，免除這次暫停。','使用 1 張免死金牌','保留金牌，接受暫停',true,()=>{p.shields--;const message=p.name+' 使用免死金牌，免除本次醫院／監獄暫停。';announceRecovery(message);recoveryDialog('🛡️ 免死金牌',message,next)},()=>detainAtFacility(p,reason));
+}
 function finishRecoveryTurn(){next()}
 function releasePlayer(p){if(p.detained&&p.skipTurns===0){p.pos=S.facilityIndex;p.score-=150;p.detained=false;announceRecovery(p.name+' 出院／出獄，支付150分，現在 '+p.score+' 分。')}}
 next=function(){
   if(S.over)return;S.players[S.cur].turnsTaken=(S.players[S.cur].turnsTaken||0)+1;S.cur=(S.cur+1)%S.players.length;
   const p=S.players[S.cur];document.getElementById('rollBtn').disabled=true;
-  if(p.skipTurns>0){p.skipTurns--;renderAll();recoveryDialog('本回合暫停',p.name+' 本次休息，還剩 '+p.skipTurns+' 次暫停。'+(p.detained&&p.skipTurns===0?' 下個可行動回合支付150分後從醫院／監獄出發。':''),next);return}
+  if(p.skipTurns>0){if(p.detained&&S.facilityEarlyExit)askFacilityEarlyExit(p);else takeDetentionTurn(p);return}
   releasePlayer(p);renderAll();updateTurn();
 };
 const landBeforeRecovery=land;
@@ -738,9 +852,15 @@ function payVisit(p){
   recipients.forEach(other=>{p.score-=50;other.score+=50});
   return recipients;
 }
-land=function(){if(S.over)return;const p=S.players[S.cur];if(S.board[p.pos].type==='facility'){
-  const recipients=payVisit(p);
-  const message=recipients.length?p.name+' 支付慰問金：'+recipients.map(x=>x.name+' +50分').join('、')+'；共支出 '+recipients.length*50+' 分，剩餘 '+p.score+' 分。':'目前沒有人住院／服刑，不用付慰問金。';
+land=function(){if(S.over)return;const p=S.players[S.cur];if(S.board[p.pos].type==='shop'){openShop(p);return}if(S.board[p.pos].type==='facility'){
+  const recipients=S.players.filter(other=>other!==p&&other.pos===S.facilityIndex&&(other.detained||other.skipTurns>0));
+  if(Math.random()<.30){
+    p.score+=100;
+    const message=p.name+' 擔任醫院／監獄志工，獲得獎勵金 100 分！'+(recipients.length?' 這次免付慰問金。':'');
+    announceRecovery(message);recoveryDialog('🏥／🔒 志工獎勵',message,next);return;
+  }
+  const paid=payVisit(p);
+  const message=paid.length?p.name+' 支付慰問金：'+paid.map(x=>x.name+' +50分').join('、')+'；共支出 '+paid.length*50+' 分，剩餘 '+p.score+' 分。':'目前沒有人住院／服刑，不用付慰問金。';
   announceRecovery(message);recoveryDialog('探訪醫院／監獄',message+'\n探訪者不暫停；慰問金可扣成負分。',next);return}landBeforeRecovery()};
 function movementRecovery(p,done){
   const kind=randomInt(4),ranks=progressRanks();
@@ -770,6 +890,11 @@ function scoreRecoveryPool(p){
   if(p.score<0)pool.push({kind:'reset'});
   return pool;
 }
+function recordChanceFateVisit(p){
+  p.cfVisits=(p.cfVisits||0)+1;
+  if(p.cfVisits<5)return false;
+  p.cfVisits=0;return true;
+}
 const flipBeforeRecovery=flipCard;
 function leaderBadCard(){
   const deck=S.currentCF==='chance'?CHANCE:FATE;
@@ -781,18 +906,14 @@ function leaderBadCard(){
 }
 flipCard=function(){
   if(S.over||S.paused||document.getElementById('cfBtn').style.display==='none')return;
-  const p=S.players[S.cur],card=recoveryCard(p);
+  const p=S.players[S.cur],earnedShield=recordChanceFateVisit(p),card=earnedShield?{kind:'shield'}:recoveryCard(p);
   if(card.kind==='leaderBad')card.forced=leaderBadCard();
   if(card.kind==='normal'&&!card.movement&&!card.score&&!card.wealth){flipBeforeRecovery();return}
-  document.getElementById('cfBtn').style.display='none';document.getElementById('cfText').textContent=card.kind==='facility'?'醫院／監獄通知':card.kind==='leaderBad'?card.forced.t:card.wealth?'均富卡':'翻盤機會！';document.getElementById('flipBox').classList.add('go');playSfx(S.currentCF);
+  document.getElementById('cfBtn').style.display='none';document.getElementById('cfText').textContent=card.kind==='shield'?'🛡️ 免死金牌 +1':card.kind==='facility'?'醫院／監獄通知':card.kind==='leaderBad'?card.forced.t:card.wealth?'均富卡':'翻盤機會！';document.getElementById('flipBox').classList.add('go');playSfx(S.currentCF);
   gameDelay(()=>{
     document.getElementById('cfModal').classList.remove('on');
-    if(card.kind==='facility'){
-      const reasons=['騎車分心摔倒，住院休息兩天','出門被狗咬，住院觀察兩天','溜冰忘穿護具，住院休息兩天','爬樹扭傷腳，住院休息兩天','遊戲劇情：詐欺被關兩天','遊戲劇情：公然侮辱被關兩天'];
-      p.pos=S.facilityIndex;p.skipTurns=(p.skipTurns||0)+2;p.detained=true;
-      const message=p.name+'：'+reasons[randomInt(reasons.length)-1]+'。移到醫院／監獄，暫停兩次；恢復行動時扣150分（可扣成負分）。';announceRecovery(message);
-      recoveryDialog('醫院／監獄卡',message+'\n天數與費用僅為遊戲規則。',next);return;
-    }
+    if(card.kind==='shield'){p.shields=(p.shields||0)+1;const message=p.name+' 累積第 5 次機會／命運，獲得 1 張免死金牌！';announceRecovery(message);recoveryDialog('🛡️ 免死金牌',message,next);return}
+    if(card.kind==='facility'){resolveFacilityCard(p);return}
     if(card.kind==='leaderBad'){
       const c=card.forced;S.extraTurn=false;c.do(p);
       const message=p.name+' 領先壓力：'+c.t+'。接下來自己的兩次行動恢復完全公平。';announceRecovery(message);
