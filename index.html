@@ -595,7 +595,14 @@ function walkSteps(p,delta,done){
     playSfx(dir<0?'back':'move');
     const to=(p.pos+dir+S.size)%S.size;
     travelOne(p,to,dir,()=>{
-      moved++;if(dir>0&&p.pos===0)p.lap++;renderAll();
+      moved++;
+      // A full lap is net progress: crossing the start backwards must undo a
+      // previously counted lap, otherwise a later forward crossing can win too early.
+      if(dir>0&&p.pos===0)p.lap++;
+      // With one-cell steps, arriving at the final cell while moving backwards
+      // means the player crossed the start in reverse.
+      else if(dir<0&&p.pos===S.size-1)p.lap=Math.max(0,p.lap-1);
+      renderAll();
       if(dir>0&&p.lap>=S.targetLap){msg(p.name+' 完成 '+S.targetLap+' 圈！');gameDelay(()=>endGame(p),600);return}
       gameDelay(step,150);
     });
