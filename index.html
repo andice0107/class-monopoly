@@ -1016,10 +1016,80 @@ loadSample();
     skipConfirmOpen=true;kb.el=null;
   };
 
+
+  /* ---------- 送出答案後：其他玩家額外加分 ---------- */
+  css.textContent+=
+    '#bonusAnswer{font-size:24px;font-weight:900;color:#08734d;background:#e6f6ee;border-radius:12px;padding:10px 14px;margin:8px 0;text-align:center}'+
+    '#bonusMain{font-size:19px;text-align:center;margin-bottom:6px}'+
+    '#bonusList{display:grid;gap:10px;margin-top:8px}'+
+    '.bonusRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}'+
+    '.bonusRow .bonusToggle{flex:1 1 260px;text-align:left;font-size:21px;padding:12px 16px;min-height:56px}'+
+    '.bonusRow .bonusToggle[aria-pressed="true"]{background:#d9f3e6;border-color:#08734d;color:#08734d}'+
+    '.bonusAmt{display:flex;align-items:center;gap:6px;font-size:19px;font-weight:800}'+
+    '.bonusAmt input{width:84px;font-size:21px;font-weight:800;text-align:center;padding:8px}'+
+    '.bonusAmt .bonusStep{font-size:22px;min-width:46px;padding:8px}';
+  const bonusModal=document.createElement('div');bonusModal.className='modal';bonusModal.id='bonusModal';
+  bonusModal.innerHTML='<div class="box" style="max-width:780px"><h2 style="text-align:center;margin:0 0 4px">🙌 其他玩家答對加分</h2>'+
+    '<div id="bonusAnswer"></div><div id="bonusMain"></div>'+
+    '<p class="small" id="bonusHelp" style="text-align:center;margin:4px 0"></p><div id="bonusList"></div>'+
+    '<div style="display:flex;justify-content:center;margin-top:16px"><button class="btn" id="bonusOk">確認加分，繼續遊戲</button></div></div>';
+  document.body.append(bonusModal);
+  function openBonus(answer,mainText,done){
+    const version=gameVersion,cap=Math.max(0,S.scoreOk|0),def=Math.min(50,cap);
+    document.getElementById('bonusAnswer').textContent='✅ 正確答案：'+answer;
+    document.getElementById('bonusMain').textContent=mainText;
+    document.getElementById('bonusHelp').textContent='其他玩家有答對的，請點自己的名字打勾。每人預設加 '+def+' 分，可調整 0～'+cap+' 分。';
+    const list=document.getElementById('bonusList');list.innerHTML='';
+    const rows=[];
+    S.players.forEach((p,i)=>{if(i===S.cur)return;
+      const row=document.createElement('div');row.className='bonusRow';
+      const t=document.createElement('button');t.type='button';t.className='btn2 bonusToggle';t.setAttribute('aria-pressed','false');
+      const amt=document.createElement('div');amt.className='bonusAmt';
+      const minus=document.createElement('button');minus.type='button';minus.className='btn2 bonusStep';minus.textContent='−';
+      const inp=document.createElement('input');inp.type='number';inp.min=0;inp.max=cap;inp.step=10;inp.value=def;
+      const plus=document.createElement('button');plus.type='button';plus.className='btn2 bonusStep';plus.textContent='＋';
+      const unit=document.createElement('span');unit.textContent='分';
+      amt.append(minus,inp,unit,plus);row.append(t,amt);list.append(row);
+      const val=()=>{let v=Math.round(+inp.value||0);v=Math.min(cap,Math.max(0,v));return v};
+      const draw=()=>{const on=t.getAttribute('aria-pressed')==='true';t.textContent=(on?'✅ ':'⬜ ')+p.emo+' '+p.name+(on?'　答對 +'+val()+' 分':'　（沒答對）')};
+      t.onclick=()=>{t.setAttribute('aria-pressed',t.getAttribute('aria-pressed')==='true'?'false':'true');draw()};
+      inp.onchange=()=>{inp.value=val();draw()};inp.oninput=draw;
+      minus.onclick=()=>{inp.value=Math.max(0,val()-10);draw()};
+      plus.onclick=()=>{inp.value=Math.min(cap,val()+10);draw()};
+      draw();rows.push({p,t,val});
+    });
+    kb.el=null;bonusModal.classList.add('on');
+    document.getElementById('bonusOk').onclick=()=>{
+      if(version!==gameVersion||S.over)return;
+      const got=[];rows.forEach(r=>{if(r.t.getAttribute('aria-pressed')==='true'){const v=r.val();if(v>0){r.p.score+=v;got.push(r.p.name+' +'+v)}}});
+      bonusModal.classList.remove('on');
+      if(got.length){renderAll();const b=document.getElementById('resultBanner');const extra=document.createElement('div');extra.className='bonusResult';extra.style.cssText='font-size:16px;font-weight:800;color:#08734d;margin-top:6px';extra.textContent='🙌 其他玩家加分：'+got.join('、');b.append(extra)}
+      done();
+    };
+  }
+  const submitBeforeBonus=submitQ;
+  submitQ=function(){
+    if(!S.currentSel||!S.currentSel.size||(S.paused&&qOpen()))return submitBeforeBonus.apply(this,arguments);
+    const p=S.players[S.cur],answer=wantText();
+    const got=Array.from(S.currentSel).sort().join(''),want=(S.currentWant||[]).slice().sort().join('');
+    const ok=got===want&&got!=='';
+    const realDelay=gameDelay;let held=null;
+    gameDelay=function(fn,ms){if(!held){held=[fn,ms];return 0}return realDelay(fn,ms)};
+    try{submitBeforeBonus.apply(this,arguments)}finally{gameDelay=realDelay}
+    if(!held)return;
+    if(S.players.length<2||S.over){realDelay(held[0],held[1]);return}
+    openBonus(answer,p.emo+' '+p.name+(ok?' 答對了，+'+S.scoreOk+' 分！':' 這題沒答對。'),()=>realDelay(held[0],held[1]));
+  };
+
+  /* ---------- 設定頁預設值：醫院／監獄、商店各一格，答錯倒退 1 格，可付分提早離開 ---------- */
+  [['facilityEnabled','on'],['shopEnabled','on'],['wrongMode','back'],['facilityEarlyExit','on']].forEach(([id,v])=>{const el=document.getElementById(id);if(el){el.value=v;[...el.options].forEach(o=>o.defaultSelected=o.value===v)}});
+  {const wv=document.getElementById('wrongVal');if(wv){wv.value='1';wv.defaultValue='1'}}
+
   /* ---------- 視窗按鍵：快速鍵按下單一按鍵／選中的按鍵，方向鍵挑選項 ---------- */
   const kb={modal:null,el:null};
   function candidates(modal){
     if(modal===qModal)return [...document.querySelectorAll('#qOpts .opt')].filter(b=>!b.disabled&&visible(b));
+    if(modal===bonusModal)return [...bonusModal.querySelectorAll('.bonusToggle')].filter(b=>!b.disabled&&visible(b));
     return [...modal.querySelectorAll('button')].filter(b=>!b.disabled&&visible(b));
   }
   function defaultFocus(modal,c){
@@ -1038,7 +1108,7 @@ loadSample();
     if(!modal){kb.modal=null;kb.el=null;setFocus(null);return}
     const c=candidates(modal);
     let el=currentFocus(modal,c);
-    if(!el&&modal!==qModal&&c.length>1)el=defaultFocus(modal,c);
+    if(!el&&modal!==qModal&&modal!==bonusModal&&c.length>1)el=defaultFocus(modal,c);
     kb.modal=modal;kb.el=el||null;setFocus(kb.el);
   }
   function moveFocus(c,cur,dir){
@@ -1060,13 +1130,14 @@ loadSample();
     return true;
   }
   function toggleOption(){
-    const modal=topModal();if(modal!==qModal||blocked(modal))return false;
+    const modal=topModal();if((modal!==qModal&&modal!==bonusModal)||blocked(modal))return false;
     const c=candidates(modal),el=currentFocus(modal,c);if(!el)return false;
     el.click();return true;
   }
   function confirmModal(modal){
     if(blocked(modal))return;
     if(modal===qModal){if(!qSubmit.disabled)qSubmit.click();return}
+    if(modal===bonusModal){document.getElementById('bonusOk').click();return}
     const c=candidates(modal);if(!c.length)return;
     const el=c.length===1?c[0]:(currentFocus(modal,c)||defaultFocus(modal,c));
     el.click();
@@ -1096,7 +1167,7 @@ loadSample();
       return;
     }
     if(/^Arrow(Up|Down|Left|Right)$/.test(e.key)&&topModal()){e.preventDefault();arrow(e.key);return}
-    if(e.key==='Enter'&&topModal()===qModal){e.preventDefault();if(!e.repeat)toggleOption()}
+    if(e.key==='Enter'&&(topModal()===qModal||topModal()===bonusModal)){e.preventDefault();if(!e.repeat)toggleOption()}
   },true);
   document.addEventListener('keyup',e=>{if(isSpace(e)&&!typing(e.target)&&gameScreen())e.preventDefault()},true);
 
