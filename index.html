@@ -926,7 +926,7 @@ flipCard=function(){
   },900);
 };
 loadSample();
-/* ===== 2026-11 調整：作答暫停計時、隨時顯示目前玩家、空白鍵連按兩下／滑鼠左右鍵同按擲骰 ===== */
+/* ===== 2026-11 調整：作答暫停計時、隨時顯示目前玩家、快速鍵（空白鍵連按兩下／滑鼠左右鍵同按）、方向鍵選擇、跳過確認 ===== */
 (function(){
   const css=document.createElement('style');
   css.textContent=
@@ -937,32 +937,57 @@ loadSample();
     'body.turnTagOn .modal.on{padding-top:78px}'+
     '#qPauseBtn{white-space:nowrap}'+
     '#qModal.qPaused #qTimer{color:#1d4ed8!important}'+
-    '@media(max-width:760px){#turnTag{font-size:20px;padding:6px 16px}body.turnTagOn .modal.on{padding-top:64px}}';
+    '#qTotal{float:right;clear:right;font-size:calc(20px * var(--fit-scale,1));font-weight:900;color:#874529;padding:0 0 4px}'+
+    '#qTotal:empty{display:none}'+
+    '#qModal.qPaused #qOpts .opt,#qModal.qPaused #qSubmit,#qModal.qPaused #qSkip{opacity:.45;cursor:not-allowed}'+
+    '.modal .kbFocus{outline:5px solid #f0b429!important;outline-offset:3px;box-shadow:0 0 0 9px #f0b42955!important}'+
+    '#quickRollHint{font-size:15px;line-height:1.45;color:#596b7c;text-align:center;margin:0}'+
+    '@media(max-width:760px){#turnTag{font-size:20px;padding:6px 16px}body.turnTagOn .modal.on{padding-top:64px}#quickRollHint{font-size:13px}}';
   document.head.append(css);
+
+  function gameScreen(){return document.getElementById('game').classList.contains('on')&&S.board.length&&!S.over}
+  function gameOn(){return gameScreen()&&S.orderDone&&S.players.length}
+  function visible(el){return el&&!el.hidden&&el.offsetParent!==null}
+  function topModal(){const ms=[...document.querySelectorAll('.modal.on')];return ms[ms.length-1]||null}
+  function fmt(sec){sec=Math.max(0,sec|0);return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
+
+  /* ---------- 擲骰區：快速操作說明 ---------- */
+  const hint=document.createElement('div');hint.id='quickRollHint';
+  hint.textContent='⌨️ 快速操作：空白鍵連按兩下，或滑鼠左右鍵同時按';
+  const rollBtn=document.getElementById('rollBtn');rollBtn.insertAdjacentElement('afterend',hint);
 
   /* ---------- 隨時顯示目前是哪位玩家的回合 ---------- */
   const tag=document.createElement('div');tag.id='turnTag';tag.setAttribute('role','status');document.body.append(tag);
-  function gameOn(){return document.getElementById('game').classList.contains('on')&&S.board.length&&!S.over&&S.orderDone&&S.players.length}
   function syncTurnTag(){
     const openModal=document.querySelector('.modal.on:not(#orderModal)');
     const on=!!(gameOn()&&openModal);
     if(on){const p=S.players[S.cur];if(p){const t='👉 現在輪到：'+p.emo+' '+p.name;if(tag.textContent!==t)tag.textContent=t}}
     if(document.body.classList.contains('turnTagOn')!==on)document.body.classList.toggle('turnTagOn',on);
   }
-  new MutationObserver(syncTurnTag).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
-  setInterval(syncTurnTag,400);
 
-  /* ---------- 作答期間的暫停計時按鍵 ---------- */
+  /* ---------- 作答視窗：整局剩餘時間、暫停計時（暫停時不能作答） ---------- */
   const qModal=document.getElementById('qModal');
-  const row=document.getElementById('qSubmit').parentElement;
+  const qSubmit=document.getElementById('qSubmit');
+  const row=qSubmit.parentElement;
+  const qSkip=row.querySelector('button[onclick="closeQ(true)"]');qSkip.id='qSkip';qSkip.removeAttribute('onclick');
   const qp=document.createElement('button');qp.className='btn2';qp.id='qPauseBtn';qp.type='button';row.append(qp);
+  const qTotal=document.createElement('div');qTotal.id='qTotal';document.getElementById('qTimer').insertAdjacentElement('afterend',qTotal);
   function qOpen(){return qModal.classList.contains('on')}
+  function syncQTotal(){const t=S.timeOn?'⏱ 整局剩餘 '+fmt(S.timeLeft):'';if(qTotal.textContent!==t)qTotal.textContent=t}
+  function syncQLock(){
+    const lock=!!S.paused;
+    document.querySelectorAll('#qOpts .opt').forEach(b=>{if(b.disabled!==lock)b.disabled=lock});
+    const sub=lock||!(S.currentSel&&S.currentSel.size);if(qSubmit.disabled!==sub)qSubmit.disabled=sub;
+    if(qSkip.disabled!==lock)qSkip.disabled=lock;
+  }
   function syncQPause(){
     qp.hidden=!(S.qTimeOn||S.timeOn);
     qp.textContent=S.paused?'▶ 繼續計時':'⏸ 暫停計時';
     qModal.classList.toggle('qPaused',!!S.paused);
-    const el=document.getElementById('qTimer');
+    syncQTotal();
     if(!qOpen())return;
+    syncQLock();
+    const el=document.getElementById('qTimer');
     if(S.paused)el.textContent=S.qTimeOn?'⏸ 計時已暫停（作答剩餘 '+S.qTimeLeft+' 秒）':'⏸ 計時已暫停';
     else if(S.qTimeOn)renderQTimer();
     else el.textContent='';
@@ -976,46 +1001,120 @@ loadSample();
   }
   qp.onclick=()=>{if(S.over)return;setPaused(!S.paused)};
   const baseToggle=togglePause;togglePause=function(){baseToggle.apply(this,arguments);syncQPause()};
-  const baseOpenQ2=openQ;openQ=function(){baseOpenQ2.apply(this,arguments);syncQPause()};
-  // 暫停中直接送出或跳過時，自動恢復計時，遊戲才能繼續進行。
-  const baseSubmit=submitQ;submitQ=function(){if(S.paused&&qOpen()&&S.currentSel&&S.currentSel.size)setPaused(false);return baseSubmit.apply(this,arguments)};
-  const baseCloseQ=closeQ;closeQ=function(){if(S.paused&&qOpen())setPaused(false);return baseCloseQ.apply(this,arguments)};
+  const baseOpenQ2=openQ;openQ=function(){baseOpenQ2.apply(this,arguments);kb.el=null;syncQPause()};
+  const baseSubmit=submitQ;submitQ=function(){if(S.paused&&qOpen())return;closeSkipConfirm();return baseSubmit.apply(this,arguments)};
+  const baseCloseQ=closeQ;closeQ=function(){closeSkipConfirm();return baseCloseQ.apply(this,arguments)};
 
-  /* ---------- 空白鍵連按兩下／滑鼠左右鍵同時按 → 擲骰子／轉轉盤 ---------- */
-  function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))}
-  function visible(el){return el&&!el.hidden&&el.offsetParent!==null}
+  /* ---------- 「跳過（不計分）」先跳出確認 ---------- */
+  let skipConfirmOpen=false;
+  function closeSkipConfirm(){if(skipConfirmOpen){skipConfirmOpen=false;document.getElementById('choiceModal').classList.remove('on')}}
+  qSkip.onclick=()=>{
+    if(S.over||S.paused||!qOpen())return;
+    choiceDialog('確定要跳過這一題嗎？','跳過這一題不會得分。\n不小心按到的話，請按「回去作答」。','確定跳過','回去作答',true,
+      ()=>{skipConfirmOpen=false;if(qOpen())closeQ(true)},
+      ()=>{skipConfirmOpen=false});
+    skipConfirmOpen=true;kb.el=null;
+  };
+
+  /* ---------- 視窗按鍵：快速鍵按下單一按鍵／選中的按鍵，方向鍵挑選項 ---------- */
+  const kb={modal:null,el:null};
+  function candidates(modal){
+    if(modal===qModal)return [...document.querySelectorAll('#qOpts .opt')].filter(b=>!b.disabled&&visible(b));
+    return [...modal.querySelectorAll('button')].filter(b=>!b.disabled&&visible(b));
+  }
+  function defaultFocus(modal,c){
+    if(modal===qModal)return c.find(b=>b.classList.contains('sel'))||c[0];
+    if(modal.id==='choiceModal'&&skipConfirmOpen){const no=document.getElementById('choiceNo');if(c.includes(no))return no}
+    return c[0];
+  }
+  function setFocus(el){
+    document.querySelectorAll('.kbFocus').forEach(x=>{if(x!==el)x.classList.remove('kbFocus')});
+    if(el&&!el.classList.contains('kbFocus'))el.classList.add('kbFocus');
+  }
+  function currentFocus(modal,c){return kb.modal===modal&&c.includes(kb.el)?kb.el:null}
+  // 有兩個以上按鍵的視窗，先標出快速鍵會按到哪一個。
+  function syncKbFocus(){
+    const modal=gameScreen()?topModal():null;
+    if(!modal){kb.modal=null;kb.el=null;setFocus(null);return}
+    const c=candidates(modal);
+    let el=currentFocus(modal,c);
+    if(!el&&modal!==qModal&&c.length>1)el=defaultFocus(modal,c);
+    kb.modal=modal;kb.el=el||null;setFocus(kb.el);
+  }
+  function moveFocus(c,cur,dir){
+    const r=cur.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let best=null,bd=Infinity;
+    for(const el of c){if(el===cur)continue;const q=el.getBoundingClientRect(),x=q.left+q.width/2-cx,y=q.top+q.height/2-cy;
+      let main,cross;if(dir==='ArrowRight'){main=x;cross=y}else if(dir==='ArrowLeft'){main=-x;cross=y}else if(dir==='ArrowDown'){main=y;cross=x}else{main=-y;cross=x}
+      if(main<=4)continue;const d=main+Math.abs(cross)*2;if(d<bd){bd=d;best=el}}
+    if(!best){const i=c.indexOf(cur),step=(dir==='ArrowRight'||dir==='ArrowDown')?1:-1;best=c[(i+step+c.length)%c.length]}
+    return best;
+  }
+  function blocked(modal){return S.paused&&modal.id!=='pauseModal'}
+  function arrow(dir){
+    const modal=topModal();if(!modal||blocked(modal))return false;
+    const c=candidates(modal);if(!c.length)return true;
+    const cur=currentFocus(modal,c);
+    const el=cur?moveFocus(c,cur,dir):defaultFocus(modal,c);
+    kb.modal=modal;kb.el=el;setFocus(el);
+    if(modal===qModal&&S.currentWant&&S.currentWant.length<=1&&!el.classList.contains('sel'))el.click();
+    return true;
+  }
+  function toggleOption(){
+    const modal=topModal();if(modal!==qModal||blocked(modal))return false;
+    const c=candidates(modal),el=currentFocus(modal,c);if(!el)return false;
+    el.click();return true;
+  }
+  function confirmModal(modal){
+    if(blocked(modal))return;
+    if(modal===qModal){if(!qSubmit.disabled)qSubmit.click();return}
+    const c=candidates(modal);if(!c.length)return;
+    const el=c.length===1?c[0]:(currentFocus(modal,c)||defaultFocus(modal,c));
+    el.click();
+  }
   function triggerRoll(){
     if(!gameOn()||S.paused)return false;
-    const draw=document.getElementById('recoveryDraw');
-    if(document.getElementById('recoveryModal').classList.contains('on')){
-      if(visible(draw)&&!draw.disabled){draw.click();return true}
-      return false;
-    }
-    if(document.querySelector('.modal.on'))return false;
-    const btn=document.getElementById('rollBtn');
-    if(btn&&!btn.disabled){btn.click();return true}
+    if(rollBtn&&!rollBtn.disabled){rollBtn.click();return true}
     return false;
   }
-  let lastSpace=0;
-  function isSpace(e){return e.code==='Space'||e.key===' '||e.key==='Spacebar'}
-  document.addEventListener('keydown',e=>{
-    if(!isSpace(e)||typing(e.target)||!gameOn())return;
-    e.preventDefault();
-    if(e.repeat)return;
-    const now=performance.now();
-    if(now-lastSpace<=600){lastSpace=0;triggerRoll()}else lastSpace=now;
-  },true);
-  document.addEventListener('keyup',e=>{if(isSpace(e)&&!typing(e.target)&&gameOn())e.preventDefault()},true);
+  function quickAction(){
+    if(!gameScreen())return;
+    const modal=topModal();
+    if(modal)confirmModal(modal);else triggerRoll();
+    syncKbFocus();
+  }
 
-  let chordAt=0;
-  document.addEventListener('mousedown',e=>{
-    if(!gameOn())return;
-    if((e.buttons&3)===3){e.preventDefault();triggerRoll();chordAt=performance.now()}
+  function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))}
+  function isSpace(e){return e.code==='Space'||e.key===' '||e.key==='Spacebar'}
+  let lastSpace=0;
+  document.addEventListener('keydown',e=>{
+    if(typing(e.target)||!gameScreen())return;
+    if(isSpace(e)){
+      e.preventDefault();
+      if(e.repeat)return;
+      const now=performance.now();
+      if(now-lastSpace<=600){lastSpace=0;quickAction()}else lastSpace=now;
+      return;
+    }
+    if(/^Arrow(Up|Down|Left|Right)$/.test(e.key)&&topModal()){e.preventDefault();arrow(e.key);return}
+    if(e.key==='Enter'&&topModal()===qModal){e.preventDefault();if(!e.repeat)toggleOption()}
   },true);
+  document.addEventListener('keyup',e=>{if(isSpace(e)&&!typing(e.target)&&gameScreen())e.preventDefault()},true);
+
+  let chordActive=false,chordReleased=-1e9;
+  document.addEventListener('mousedown',e=>{
+    if(!gameScreen())return;
+    if((e.buttons&3)===3){e.preventDefault();quickAction();chordActive=true}
+  },true);
+  document.addEventListener('mouseup',e=>{if(chordActive&&(e.buttons&3)===0){chordActive=false;chordReleased=performance.now()}},true);
   // 同時按左右鍵後放開，不要再觸發游標下按鈕的點擊，也不要跳出右鍵選單。
-  document.addEventListener('click',e=>{if(performance.now()-chordAt<800){e.preventDefault();e.stopPropagation()}},true);
-  document.addEventListener('auxclick',e=>{if(performance.now()-chordAt<800){e.preventDefault();e.stopPropagation()}},true);
-  document.addEventListener('contextmenu',e=>{if(gameOn())e.preventDefault()},true);
+  const swallow=e=>{if(chordActive||performance.now()-chordReleased<250){e.preventDefault();e.stopPropagation()}};
+  document.addEventListener('click',swallow,true);
+  document.addEventListener('auxclick',swallow,true);
+  document.addEventListener('contextmenu',e=>{if(gameScreen())e.preventDefault()},true);
+
+  function syncAll(){syncTurnTag();syncKbFocus();if(qOpen()){syncQTotal();syncQLock()}}
+  new MutationObserver(syncAll).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class','hidden','disabled','style']});
+  setInterval(syncAll,300);
 })();
 </script>
 </body>
