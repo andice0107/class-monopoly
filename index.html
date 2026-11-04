@@ -224,8 +224,8 @@ table.rank{table-layout:fixed;word-break:break-word}
       <div><label>玩家名稱（逗號分隔，可空白）</label><input id="pNames" placeholder="例：第1組,第2組,第3組"></div>
     </div>
     <div class="row">
-      <div><label>單局時間限制</label><select id="timeMode"><option value="off">關閉（玩到有人走完圈數）</option><option value="on">開啟（時間到按分數排名）</option></select></div>
-      <div><label>時間（分鐘，1~30）</label><input id="timeMin" type="number" min="1" max="30" value="10"></div>
+      <div><label>單局時間限制</label><select id="timeMode"><option value="off">不限時（玩到有人先走完指定圈數）</option><option value="on">開啟（時間到按分數排名）</option></select></div>
+      <div><label>時間（分鐘，1~180）</label><input id="timeMin" type="number" min="1" max="180" value="10"></div>
     </div>
   </div>
 
@@ -380,7 +380,7 @@ function startGame(){parseQText();if(!QUESTIONS.length){alert('請先載入至�
 let gc=getCounts();let n=gc[0],cc=gc[1],fc=gc[2];
 let needQ=n-cc-fc-1;if(needQ<1){alert('機會＋命運太多，至少要留1格題目');return}
 S.size=n;S.targetLap=+document.getElementById('targetLap').value||2;S.scoreOk=100;S.wrongMode=document.getElementById('wrongMode').value;S.wrongVal=+document.getElementById('wrongVal').value||5;
-S.timeOn=document.getElementById('timeMode').value==='on';S.timeLeft=Math.min(30,Math.max(1,+document.getElementById('timeMin').value||10))*60;S.timeUp=false;
+S.timeOn=document.getElementById('timeMode').value==='on';S.timeLeft=Math.min(180,Math.max(1,+document.getElementById('timeMin').value||10))*60;S.timeUp=false;
 S.qTimeOn=document.getElementById('qTimeMode').value==='on';S.qTimeSec=Math.min(120,Math.max(10,+document.getElementById('qTimeSec').value||30));
 let pc=Math.min(6,Math.max(1,+document.getElementById('pCount').value||2));let names=document.getElementById('pNames').value.split(/[,，]/).map(s=>s.trim());
 S.players=[];let poolE=shuffle(EMO_POOL.slice());for(let i=0;i<pc;i++)S.players.push({name:names[i]||('第'+(i+1)+'組'),emo:poolE[i%poolE.length],pos:0,score:0,lap:0});
@@ -926,6 +926,403 @@ flipCard=function(){
   },900);
 };
 loadSample();
+/* ===== 2026-11 調整：作答暫停計時、隨時顯示目前玩家、快速鍵（空白鍵連按兩下／滑鼠左右鍵同按）、方向鍵選擇、跳過確認 ===== */
+(function(){
+  const css=document.createElement('style');
+  css.textContent=
+    '#turnTag{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:80;display:none;align-items:center;gap:8px;'+
+    'background:#fff7d6;border:3px solid #f0b429;color:#5a3b00;font-size:26px;font-weight:900;padding:8px 24px;border-radius:999px;'+
+    'box-shadow:0 6px 18px #0004;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;pointer-events:none}'+
+    'body.turnTagOn #turnTag{display:flex}'+
+    'body.turnTagOn .modal.on{padding-top:78px}'+
+    '#qPauseBtn{white-space:nowrap}'+
+    '#qModal.qPaused #qTimer{color:#1d4ed8!important}'+
+    '#qTotal{float:right;clear:right;font-size:calc(20px * var(--fit-scale,1));font-weight:900;color:#874529;padding:0 0 4px}'+
+    '#qTotal:empty{display:none}'+
+    '#qModal.qPaused #qOpts .opt,#qModal.qPaused #qSubmit,#qModal.qPaused #qSkip{opacity:.45;cursor:not-allowed}'+
+    '.modal .kbFocus{outline:5px solid #f0b429!important;outline-offset:3px;box-shadow:0 0 0 9px #f0b42955!important}'+
+    '#quickRollHint{font-size:15px;line-height:1.45;color:#596b7c;text-align:center;margin:0}'+
+    '@media(max-width:760px){#turnTag{font-size:20px;padding:6px 16px}body.turnTagOn .modal.on{padding-top:64px}#quickRollHint{font-size:13px}}';
+  document.head.append(css);
+
+  function gameScreen(){return document.getElementById('game').classList.contains('on')&&S.board.length&&!S.over}
+  function gameOn(){return gameScreen()&&S.orderDone&&S.players.length}
+  function visible(el){return el&&!el.hidden&&el.offsetParent!==null}
+  function topModal(){const ms=[...document.querySelectorAll('.modal.on')];return ms[ms.length-1]||null}
+  function fmt(sec){sec=Math.max(0,sec|0);return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')}
+
+  /* ---------- 擲骰區：快速操作說明 ---------- */
+  const hint=document.createElement('div');hint.id='quickRollHint';
+  hint.textContent='⌨️ 快速操作：空白鍵連按兩下，或滑鼠左右鍵同時按';
+  const rollBtn=document.getElementById('rollBtn');rollBtn.insertAdjacentElement('afterend',hint);
+
+  /* ---------- 隨時顯示目前是哪位玩家的回合 ---------- */
+  const tag=document.createElement('div');tag.id='turnTag';tag.setAttribute('role','status');document.body.append(tag);
+  function syncTurnTag(){
+    const openModal=document.querySelector('.modal.on:not(#orderModal)');
+    const on=!!(gameOn()&&openModal);
+    if(on){const p=S.players[S.cur];if(p){const t='👉 現在輪到：'+p.emo+' '+p.name;if(tag.textContent!==t)tag.textContent=t}}
+    if(document.body.classList.contains('turnTagOn')!==on)document.body.classList.toggle('turnTagOn',on);
+  }
+
+  /* ---------- 作答視窗：整局剩餘時間、暫停計時（暫停時不能作答） ---------- */
+  const qModal=document.getElementById('qModal');
+  const qSubmit=document.getElementById('qSubmit');
+  const row=qSubmit.parentElement;
+  const qSkip=row.querySelector('button[onclick="closeQ(true)"]');qSkip.id='qSkip';qSkip.removeAttribute('onclick');
+  const qp=document.createElement('button');qp.className='btn2';qp.id='qPauseBtn';qp.type='button';row.append(qp);
+  const qTotal=document.createElement('div');qTotal.id='qTotal';document.getElementById('qTimer').insertAdjacentElement('afterend',qTotal);
+  function qOpen(){return qModal.classList.contains('on')}
+  function syncQTotal(){const t=S.timeOn?'⏱ 整局剩餘 '+fmt(S.timeLeft):'';if(qTotal.textContent!==t)qTotal.textContent=t}
+  function syncQLock(){
+    const lock=!!S.paused;
+    document.querySelectorAll('#qOpts .opt').forEach(b=>{if(b.disabled!==lock)b.disabled=lock});
+    const sub=lock||!(S.currentSel&&S.currentSel.size);if(qSubmit.disabled!==sub)qSubmit.disabled=sub;
+    if(qSkip.disabled!==lock)qSkip.disabled=lock;
+  }
+  function syncQPause(){
+    qp.hidden=!(S.qTimeOn||S.timeOn);
+    qp.textContent=S.paused?'▶ 繼續計時':'⏸ 暫停計時';
+    qModal.classList.toggle('qPaused',!!S.paused);
+    syncQTotal();
+    if(!qOpen())return;
+    syncQLock();
+    const el=document.getElementById('qTimer');
+    if(S.paused)el.textContent=S.qTimeOn?'⏸ 計時已暫停（作答剩餘 '+S.qTimeLeft+' 秒）':'⏸ 計時已暫停';
+    else if(S.qTimeOn)renderQTimer();
+    else el.textContent='';
+  }
+  function setPaused(on){
+    if(!!S.paused===on)return;
+    S.paused=on;
+    document.getElementById('pauseBtn').textContent=S.paused?'▶ 繼續':'⏸ 暫停';
+    if(S.paused)stopBgm();else startBgm();
+    syncQPause();
+  }
+  qp.onclick=()=>{if(S.over)return;setPaused(!S.paused)};
+  const baseToggle=togglePause;togglePause=function(){baseToggle.apply(this,arguments);syncQPause()};
+  const baseOpenQ2=openQ;openQ=function(){baseOpenQ2.apply(this,arguments);kb.el=null;syncQPause()};
+  const baseSubmit=submitQ;submitQ=function(){if(S.paused&&qOpen())return;closeSkipConfirm();return baseSubmit.apply(this,arguments)};
+  const baseCloseQ=closeQ;closeQ=function(){closeSkipConfirm();return baseCloseQ.apply(this,arguments)};
+
+  /* ---------- 「跳過（不計分）」先跳出確認 ---------- */
+  let skipConfirmOpen=false;
+  function closeSkipConfirm(){if(skipConfirmOpen){skipConfirmOpen=false;document.getElementById('choiceModal').classList.remove('on')}}
+  qSkip.onclick=()=>{
+    if(S.over||S.paused||!qOpen())return;
+    choiceDialog('確定要跳過這一題嗎？','跳過這一題不會得分。\n不小心按到的話，請按「回去作答」。','確定跳過','回去作答',true,
+      ()=>{skipConfirmOpen=false;if(qOpen())closeQ(true)},
+      ()=>{skipConfirmOpen=false});
+    skipConfirmOpen=true;kb.el=null;
+  };
+
+
+  /* ---------- 送出答案後：其他玩家額外加分 ---------- */
+  css.textContent+=
+    '#bonusAnswer{font-size:24px;font-weight:900;color:#08734d;background:#e6f6ee;border-radius:12px;padding:10px 14px;margin:8px 0;text-align:center}'+
+    '#bonusMain{font-size:19px;text-align:center;margin-bottom:6px}'+
+    '#bonusList{display:grid;gap:10px;margin-top:8px}'+
+    '.bonusRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}'+
+    '.bonusRow .bonusToggle{flex:1 1 260px;text-align:left;font-size:21px;padding:12px 16px;min-height:56px}'+
+    '.bonusRow .bonusToggle[aria-pressed="true"]{background:#d9f3e6;border-color:#08734d;color:#08734d}'+
+    '.bonusAmt{display:flex;align-items:center;gap:6px;font-size:19px;font-weight:800}'+
+    '.bonusAmt input{width:84px;font-size:21px;font-weight:800;text-align:center;padding:8px}'+
+    '.bonusAmt .bonusStep{font-size:22px;min-width:46px;padding:8px}';
+  const bonusModal=document.createElement('div');bonusModal.className='modal';bonusModal.id='bonusModal';
+  bonusModal.innerHTML='<div class="box" style="max-width:780px"><h2 style="text-align:center;margin:0 0 4px">🙌 其他玩家答對加分</h2>'+
+    '<div id="bonusAnswer"></div><div id="bonusMain"></div>'+
+    '<p class="small" id="bonusHelp" style="text-align:center;margin:4px 0"></p><div id="bonusList"></div>'+
+    '<div style="display:flex;justify-content:center;margin-top:16px"><button class="btn" id="bonusOk">確認加分，繼續遊戲</button></div></div>';
+  document.body.append(bonusModal);
+  function openBonus(answer,mainText,done){
+    const version=gameVersion,cap=Math.max(0,S.scoreOk|0),def=Math.min(50,cap);
+    document.getElementById('bonusAnswer').textContent='✅ 正確答案：'+answer;
+    document.getElementById('bonusMain').textContent=mainText;
+    document.getElementById('bonusHelp').textContent='其他玩家有答對的，請點自己的名字打勾。每人預設加 '+def+' 分，可調整 0～'+cap+' 分。';
+    const list=document.getElementById('bonusList');list.innerHTML='';
+    const rows=[];
+    S.players.forEach((p,i)=>{if(i===S.cur)return;
+      const row=document.createElement('div');row.className='bonusRow';
+      const t=document.createElement('button');t.type='button';t.className='btn2 bonusToggle';t.setAttribute('aria-pressed','false');
+      const amt=document.createElement('div');amt.className='bonusAmt';
+      const minus=document.createElement('button');minus.type='button';minus.className='btn2 bonusStep';minus.textContent='−';
+      const inp=document.createElement('input');inp.type='number';inp.min=0;inp.max=cap;inp.step=10;inp.value=def;
+      const plus=document.createElement('button');plus.type='button';plus.className='btn2 bonusStep';plus.textContent='＋';
+      const unit=document.createElement('span');unit.textContent='分';
+      amt.append(minus,inp,unit,plus);row.append(t,amt);list.append(row);
+      const val=()=>{let v=Math.round(+inp.value||0);v=Math.min(cap,Math.max(0,v));return v};
+      const draw=()=>{const on=t.getAttribute('aria-pressed')==='true';t.textContent=(on?'✅ ':'⬜ ')+p.emo+' '+p.name+(on?'　答對 +'+val()+' 分':'　（沒答對）')};
+      t.onclick=()=>{t.setAttribute('aria-pressed',t.getAttribute('aria-pressed')==='true'?'false':'true');draw()};
+      inp.onchange=()=>{inp.value=val();draw()};inp.oninput=draw;
+      minus.onclick=()=>{inp.value=Math.max(0,val()-10);draw()};
+      plus.onclick=()=>{inp.value=Math.min(cap,val()+10);draw()};
+      draw();rows.push({p,t,val});
+    });
+    kb.el=null;bonusModal.classList.add('on');
+    document.getElementById('bonusOk').onclick=()=>{
+      if(version!==gameVersion||S.over)return;
+      const got=[];rows.forEach(r=>{if(r.t.getAttribute('aria-pressed')==='true'){const v=r.val();if(v>0){r.p.score+=v;got.push(r.p.name+' +'+v)}}});
+      bonusModal.classList.remove('on');
+      if(got.length){renderAll();const b=document.getElementById('resultBanner');const extra=document.createElement('div');extra.className='bonusResult';extra.style.cssText='font-size:16px;font-weight:800;color:#08734d;margin-top:6px';extra.textContent='🙌 其他玩家加分：'+got.join('、');b.append(extra)}
+      done();
+    };
+  }
+  const submitBeforeBonus=submitQ;
+  submitQ=function(){
+    if(!S.currentSel||!S.currentSel.size||(S.paused&&qOpen()))return submitBeforeBonus.apply(this,arguments);
+    const p=S.players[S.cur],answer=wantText();
+    const got=Array.from(S.currentSel).sort().join(''),want=(S.currentWant||[]).slice().sort().join('');
+    const ok=got===want&&got!=='';
+    const realDelay=gameDelay;let held=null;
+    gameDelay=function(fn,ms){if(!held){held=[fn,ms];return 0}return realDelay(fn,ms)};
+    try{submitBeforeBonus.apply(this,arguments)}finally{gameDelay=realDelay}
+    if(!held)return;
+    if(S.players.length<2||S.over){realDelay(held[0],held[1]);return}
+    openBonus(answer,p.emo+' '+p.name+(ok?' 答對了，+'+S.scoreOk+' 分！':' 這題沒答對。'),()=>realDelay(held[0],held[1]));
+  };
+
+  /* ---------- 設定頁預設值：醫院／監獄、商店各一格，答錯倒退 1 格，可付分提早離開 ---------- */
+  [['facilityEnabled','on'],['shopEnabled','on'],['wrongMode','back'],['facilityEarlyExit','on'],['qTimeMode','on'],['timeMode','on']].forEach(([id,v])=>{const el=document.getElementById(id);if(el){el.value=v;[...el.options].forEach(o=>o.defaultSelected=o.value===v)}});
+  [['wrongVal','1'],['qTimeSec','60'],['timeMin','30']].forEach(([id,v])=>{const el=document.getElementById(id);if(el){el.value=v;el.defaultValue=v}});
+
+  /* ---------- 視窗按鍵：快速鍵按下單一按鍵／選中的按鍵，方向鍵挑選項 ---------- */
+  const kb={modal:null,el:null};
+  function candidates(modal){
+    if(modal===qModal)return [...document.querySelectorAll('#qOpts .opt')].filter(b=>!b.disabled&&visible(b));
+    if(modal===bonusModal)return [...bonusModal.querySelectorAll('.bonusToggle')].filter(b=>!b.disabled&&visible(b));
+    return [...modal.querySelectorAll('button')].filter(b=>!b.disabled&&visible(b));
+  }
+  function defaultFocus(modal,c){
+    if(modal===qModal)return c.find(b=>b.classList.contains('sel'))||c[0];
+    if(modal.id==='choiceModal'&&skipConfirmOpen){const no=document.getElementById('choiceNo');if(c.includes(no))return no}
+    return c[0];
+  }
+  function setFocus(el){
+    document.querySelectorAll('.kbFocus').forEach(x=>{if(x!==el)x.classList.remove('kbFocus')});
+    if(el&&!el.classList.contains('kbFocus'))el.classList.add('kbFocus');
+  }
+  function currentFocus(modal,c){return kb.modal===modal&&c.includes(kb.el)?kb.el:null}
+  // 有兩個以上按鍵的視窗，先標出快速鍵會按到哪一個。
+  function syncKbFocus(){
+    const modal=gameScreen()?topModal():null;
+    if(!modal){kb.modal=null;kb.el=null;setFocus(null);return}
+    const c=candidates(modal);
+    let el=currentFocus(modal,c);
+    if(!el&&modal!==qModal&&modal!==bonusModal&&c.length>1)el=defaultFocus(modal,c);
+    kb.modal=modal;kb.el=el||null;setFocus(kb.el);
+  }
+  function moveFocus(c,cur,dir){
+    const r=cur.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let best=null,bd=Infinity;
+    for(const el of c){if(el===cur)continue;const q=el.getBoundingClientRect(),x=q.left+q.width/2-cx,y=q.top+q.height/2-cy;
+      let main,cross;if(dir==='ArrowRight'){main=x;cross=y}else if(dir==='ArrowLeft'){main=-x;cross=y}else if(dir==='ArrowDown'){main=y;cross=x}else{main=-y;cross=x}
+      if(main<=4)continue;const d=main+Math.abs(cross)*2;if(d<bd){bd=d;best=el}}
+    if(!best){const i=c.indexOf(cur),step=(dir==='ArrowRight'||dir==='ArrowDown')?1:-1;best=c[(i+step+c.length)%c.length]}
+    return best;
+  }
+  function blocked(modal){return S.paused&&modal.id!=='pauseModal'}
+  function arrow(dir){
+    const modal=topModal();if(!modal||blocked(modal))return false;
+    const c=candidates(modal);if(!c.length)return true;
+    const cur=currentFocus(modal,c);
+    const el=cur?moveFocus(c,cur,dir):defaultFocus(modal,c);
+    kb.modal=modal;kb.el=el;setFocus(el);
+    if(modal===qModal&&S.currentWant&&S.currentWant.length<=1&&!el.classList.contains('sel'))el.click();
+    return true;
+  }
+  function toggleOption(){
+    const modal=topModal();if((modal!==qModal&&modal!==bonusModal)||blocked(modal))return false;
+    const c=candidates(modal),el=currentFocus(modal,c);if(!el)return false;
+    el.click();return true;
+  }
+  function confirmModal(modal){
+    if(blocked(modal))return;
+    if(modal===qModal){if(!qSubmit.disabled)qSubmit.click();return}
+    if(modal===bonusModal){document.getElementById('bonusOk').click();return}
+    const c=candidates(modal);if(!c.length)return;
+    const el=c.length===1?c[0]:(currentFocus(modal,c)||defaultFocus(modal,c));
+    el.click();
+  }
+  function triggerRoll(){
+    if(!gameOn()||S.paused)return false;
+    if(rollBtn&&!rollBtn.disabled){rollBtn.click();return true}
+    return false;
+  }
+  function quickAction(){
+    if(!gameScreen())return;
+    const modal=topModal();
+    if(modal)confirmModal(modal);else triggerRoll();
+    syncKbFocus();
+  }
+
+  function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))}
+  function isSpace(e){return e.code==='Space'||e.key===' '||e.key==='Spacebar'}
+  let lastSpace=0;
+  document.addEventListener('keydown',e=>{
+    if(typing(e.target)||!gameScreen())return;
+    if(isSpace(e)){
+      e.preventDefault();
+      if(e.repeat)return;
+      const now=performance.now();
+      if(now-lastSpace<=600){lastSpace=0;quickAction()}else lastSpace=now;
+      return;
+    }
+    if(/^Arrow(Up|Down|Left|Right)$/.test(e.key)&&topModal()){e.preventDefault();arrow(e.key);return}
+    if(e.key==='Enter'&&(topModal()===qModal||topModal()===bonusModal)){e.preventDefault();if(!e.repeat)toggleOption()}
+  },true);
+  document.addEventListener('keyup',e=>{if(isSpace(e)&&!typing(e.target)&&gameScreen())e.preventDefault()},true);
+
+  let chordActive=false,chordReleased=-1e9;
+  document.addEventListener('mousedown',e=>{
+    if(!gameScreen())return;
+    if((e.buttons&3)===3){e.preventDefault();quickAction();chordActive=true}
+  },true);
+  document.addEventListener('mouseup',e=>{if(chordActive&&(e.buttons&3)===0){chordActive=false;chordReleased=performance.now()}},true);
+  // 同時按左右鍵後放開，不要再觸發游標下按鈕的點擊，也不要跳出右鍵選單。
+  const swallow=e=>{if(chordActive||performance.now()-chordReleased<250){e.preventDefault();e.stopPropagation()}};
+  document.addEventListener('click',swallow,true);
+  document.addEventListener('auxclick',swallow,true);
+  document.addEventListener('contextmenu',e=>{if(gameScreen())e.preventDefault()},true);
+
+  function syncAll(){syncTurnTag();syncKbFocus();if(qOpen()){syncQTotal();syncQLock()}}
+  new MutationObserver(syncAll).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class','hidden','disabled','style']});
+  setInterval(syncAll,300);
+
+  /* ---------- 設定頁：依類別分成標籤（只搬動原有的設定欄位，不改任何設定內容） ---------- */
+  (function setupTabs(){
+    const setup=document.getElementById('setup');
+    const cards=[...setup.querySelectorAll(':scope>.card')];
+    if(cards.length<3)return;
+    const gameCard=cards[0],bankCard=cards[1],startCard=cards[cards.length-1];
+    const st=document.createElement('style');
+    st.textContent=
+      '#setup.on{display:block!important}'+
+      '#setup .setupHero{margin-bottom:16px}'+
+      '#setTabsCard{margin:0 0 16px!important;padding:18px 20px!important}'+
+      '#setTabsCard>h2{display:flex;align-items:center;gap:10px;margin:0 0 4px;font-size:24px}'+
+      '#setTabsCard>.setIntro{margin:0 0 12px;color:#596b7c;font-size:15px}'+
+      '#setSummary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}'+
+      '#setSummary button{border:1.5px solid #d7e2e6;background:#f6faf8;color:#24364a;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer}'+
+      '#setSummary button:hover{background:#e6f3ec}'+
+      '#setTabs{display:flex;flex-wrap:wrap;gap:8px;border-bottom:2px solid #e4ebe6;padding-bottom:12px;margin-bottom:16px}'+
+      '#setTabs button{display:flex;align-items:center;gap:6px;border:2px solid #d7e2e6;background:#fff;color:#435367;border-radius:14px;padding:10px 16px;font-size:17px;font-weight:800;cursor:pointer;transition:background .15s}'+
+      '#setTabs button:hover{background:#f1f7f3}'+
+      '#setTabs button[aria-selected="true"]{background:#256e51;border-color:#256e51;color:#fff;box-shadow:0 4px 0 #15473355}'+
+      '.setPanel{display:none}.setPanel.on{display:block;animation:panelArrive .2s ease-out}'+
+      '.setPanel>.setPanelHead{font-size:15px;color:#596b7c;margin:0 0 12px}'+
+      '.setGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}'+
+      '.setTile{background:#fbfdfb;border:1.5px solid #e1e9e4;border-radius:16px;padding:12px 14px;transition:opacity .2s}'+
+      '.setTile>label:first-child{margin-top:0;font-size:17px;color:#24364a}'+
+      '.setTile select,.setTile input[type=number],.setTile input:not([type]),.setTile input[type=text]{width:100%;font-size:18px}'+
+      '.setTile .setHelp{font-size:14px;color:#6a7a88;margin-top:6px;line-height:1.45}'+
+      '.setTile.dim{opacity:.45}'+
+      '.setTile.check>label{display:flex;align-items:center;gap:10px;font-size:18px;cursor:pointer}'+
+      '.setTile.check input[type=checkbox]{width:26px;height:26px;margin:0}'+
+      '.setNotes{margin-top:12px;background:#fff8e6;border-radius:12px;padding:8px 14px}'+
+      '.setNotes p{margin:6px 0}'+
+      '#setPanelBank #drop{margin:10px 0}'+
+      '@media(max-width:760px){#setTabs button{font-size:15px;padding:8px 11px}.setGrid{grid-template-columns:1fr}}';
+    document.head.append(st);
+
+    const wrap=document.createElement('div');wrap.className='card';wrap.id='setTabsCard';
+    wrap.innerHTML='<h2>⚙️ 遊戲設定</h2><p class="setIntro">點分類標籤切換設定。摘要列可以快速看目前設定，點一下也會跳到那一類。設定好了按最下面的「🚀 開始遊戲」。</p>'+
+      '<div id="setSummary" aria-label="目前設定摘要"></div><div id="setTabs" role="tablist"></div><div id="setPanels"></div>';
+    setup.insertBefore(wrap,gameCard);
+    const rs=document.getElementById('recoveryEnabled')?.closest('.row');
+    const tabsEl=wrap.querySelector('#setTabs'),panelsEl=wrap.querySelector('#setPanels');
+    const tabs=[];
+    function addTab(key,icon,name,head){
+      const b=document.createElement('button');b.type='button';b.setAttribute('role','tab');b.innerHTML='<span>'+icon+'</span>'+name;b.dataset.key=key;
+      const p=document.createElement('div');p.className='setPanel';p.id='setPanel'+key;p.setAttribute('role','tabpanel');
+      if(head){const h=document.createElement('p');h.className='setPanelHead';h.textContent=head;p.append(h)}
+      const g=document.createElement('div');g.className='setGrid';p.append(g);
+      b.onclick=()=>openTab(key);tabsEl.append(b);panelsEl.append(p);tabs.push({key,b,p,g});
+      return {panel:p,grid:g};
+    }
+    function openTab(key){tabs.forEach(t=>{const on=t.key===key;t.b.setAttribute('aria-selected',on?'true':'false');t.p.classList.toggle('on',on)});try{localStorage.setItem('cmSetTab',key)}catch(e){}}
+    function field(id){const el=document.getElementById(id);return el?el.closest('.row>div')||el.parentElement:null}
+    function tile(grid,id,help,extraClass){
+      const f=field(id);if(!f)return null;f.classList.add('setTile');if(extraClass)f.classList.add(extraClass);
+      if(help){const h=document.createElement('div');h.className='setHelp';h.textContent=help;f.append(h)}
+      grid.append(f);return f;
+    }
+
+    const t1=addTab('Team','👥','隊伍與棋盤','先決定幾組一起玩、棋盤多大、要走幾圈才獲勝。');
+    tile(t1.grid,'pCount','幾組（或幾位）一起玩。');
+    tile(t1.grid,'pNames','用逗號隔開，例如：紅隊,藍隊。空白就用預設名稱。');
+    tile(t1.grid,'targetLap','先走完這麼多圈的人獲勝。');
+    tile(t1.grid,'diceMode','用骰子或數字轉盤前進，點數都是 1～6。');
+    tile(t1.grid,'boardSize','棋盤一圈有幾格（含起點）。');
+    tile(t1.grid,'chanceCount','翻開機會牌，多半是好事。');
+    tile(t1.grid,'fateCount','翻開命運牌，有驚喜也有挑戰。');
+    const ci=document.getElementById('chanceInfo');if(ci){ci.style.gridColumn='1/-1';ci.classList.add('setNotes');t1.grid.append(ci)}
+
+    const t2=addTab('Time','⏱️','時間','每一題的作答時間，以及整局遊戲的時間。');
+    const qMode=tile(t2.grid,'qTimeMode','限時的話，時間到會自動送出目前選的答案。');
+    const qSec=tile(t2.grid,'qTimeSec','每一題可以作答幾秒。');
+    const gMode=tile(t2.grid,'timeMode','開啟後，時間到就按分數排名；不限時就玩到有人先走完指定圈數。');
+    const gMin=tile(t2.grid,'timeMin','整局可以玩幾分鐘。');
+
+    const t3=addTab('Score','✏️','答題與計分','答對、答錯各會怎麼樣。');
+    const okTile=document.querySelector('#setup .hint')?.closest('.row>div');
+    if(okTile){okTile.classList.add('setTile');t3.grid.append(okTile)}
+    tile(t3.grid,'wrongMode','答錯時要不扣分、扣分，還是倒退。');
+    const wv=tile(t3.grid,'wrongVal',' ');
+    const wvLabel=wv?wv.querySelector('label'):null,wvHelp=wv?wv.querySelector('.setHelp'):null;
+
+    const t4=addTab('Special','🏥','特殊格','醫院／監獄與商店。');
+    tile(t4.grid,'facilityEnabled','停在這裡或抽到醫院／監獄牌，就要暫停回合。');
+    tile(t4.grid,'facilityTurns','被送進醫院／監獄要暫停幾回合。');
+    tile(t4.grid,'facilityEarlyExit','可以花分數提早出院／出獄。');
+    tile(t4.grid,'shopEnabled','商店可以用分數購買功能牌。');
+
+    const t5=addTab('Recovery','🔄','翻盤機制','讓落後的人有機會追上，避免差距太大。');
+    tile(t5.grid,'recoveryEnabled','開啟後，落後的人比較容易抽到好牌。');
+    tile(t5.grid,'progressGap','比第一名落後幾步，就啟動追趕。');
+    tile(t5.grid,'scoreGap','比最高分落後幾分，就啟動追趕。');
+
+    const t6=addTab('Sound','🔊','音效','');
+    tile(t6.grid,'bgmEnabled','','check');
+    tile(t6.grid,'sfxEnabled','','check');
+
+    // 原有的長說明文字放在各分類下方
+    if(rs){const notes=[...rs.querySelectorAll(':scope>p')];
+      if(notes[0]){const n=document.createElement('div');n.className='setNotes small';n.append(notes[0]);t5.panel.append(n)}
+      if(notes[1]){const n=document.createElement('div');n.className='setNotes small';n.append(notes[1]);t4.panel.append(n)}}
+
+    const t7=addTab('Bank','📚','題庫','');
+    t7.grid.remove();
+    const bankH=bankCard.querySelector('h2');if(bankH)bankH.remove();
+    [...bankCard.childNodes].forEach(n=>t7.panel.append(n));
+
+    gameCard.remove();bankCard.remove();
+    const hs=setup.querySelector('.heroSteps');if(hs)hs.innerHTML='<span>01 遊戲設定</span><span>02 題庫</span><span>03 一起出發 ↗</span>';
+
+    // 跟著選擇變化的提示（只改外觀，不改設定值）
+    function val(id){const el=document.getElementById(id);return el?el.value:''}
+    function syncDeps(){
+      if(qSec){const on=val('qTimeMode')==='on';qSec.classList.toggle('dim',!on);qSec.querySelector('.setHelp').textContent=on?'每一題可以作答幾秒。':'目前不限時，這一格用不到。'}
+      if(gMin){const on=val('timeMode')==='on';gMin.classList.toggle('dim',!on);gMin.querySelector('.setHelp').textContent=on?'整局可以玩幾分鐘。':'目前不限時，這一格用不到。'}
+      if(wv){const m=val('wrongMode');wv.classList.toggle('dim',m==='none');
+        if(wvLabel)wvLabel.textContent=m==='back'?'答錯倒退幾格':m==='deduct'?'答錯扣幾分':'答錯扣分／倒退格數';
+        if(wvHelp)wvHelp.textContent=m==='none'?'目前答錯不扣分也不倒退，這一格用不到。':m==='back'?'答錯時往回退的格數。':'答錯時扣掉的分數。'}
+      const chips=[
+        ['Team','👥 '+val('pCount')+' 組・'+val('boardSize')+' 格・'+val('targetLap')+' 圈・'+(val('diceMode')==='spin'?'轉盤':'骰子')],
+        ['Time','⏱️ 每題'+(val('qTimeMode')==='on'?' '+val('qTimeSec')+' 秒':'不限時')+'・整局'+(val('timeMode')==='on'?' '+val('timeMin')+' 分鐘':'不限時')],
+        ['Score','✏️ 答錯'+(val('wrongMode')==='back'?'倒退 '+val('wrongVal')+' 格':val('wrongMode')==='deduct'?'扣 '+val('wrongVal')+' 分':'不扣分')],
+        ['Special','🏥 醫院監獄'+(val('facilityEnabled')==='on'?'有':'無')+'・商店'+(val('shopEnabled')==='on'?'有':'無')],
+        ['Recovery','🔄 翻盤'+(val('recoveryEnabled')==='on'?'開啟':'關閉')],
+        ['Bank','📚 '+((document.getElementById('qStatus')||{}).textContent||'題庫').replace(/\s*✅\s*/,'').trim()]
+      ];
+      const sum=document.getElementById('setSummary');const html=chips.map(([k,t])=>'<button type="button" data-k="'+k+'">'+t.replace(/[<&]/g,c=>c==='<'?'&lt;':'&amp;')+'</button>').join('');
+      if(sum.innerHTML!==html){sum.innerHTML=html;sum.querySelectorAll('button').forEach(b=>b.onclick=()=>openTab(b.dataset.k))}
+    }
+    setup.addEventListener('input',syncDeps);setup.addEventListener('change',syncDeps);
+    setInterval(()=>{if(setup.classList.contains('on'))syncDeps()},700);
+    syncDeps();
+    let first='Team';try{const k=localStorage.getItem('cmSetTab');if(k&&tabs.some(t=>t.key===k))first=k}catch(e){}
+    openTab(first);
+  })();
+})();
 </script>
 </body>
 </html>
