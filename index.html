@@ -224,8 +224,8 @@ table.rank{table-layout:fixed;word-break:break-word}
       <div><label>玩家名稱（逗號分隔，可空白）</label><input id="pNames" placeholder="例：第1組,第2組,第3組"></div>
     </div>
     <div class="row">
-      <div><label>單局時間限制</label><select id="timeMode"><option value="off">關閉（玩到有人走完圈數）</option><option value="on">開啟（時間到按分數排名）</option></select></div>
-      <div><label>時間（分鐘，1~30）</label><input id="timeMin" type="number" min="1" max="30" value="10"></div>
+      <div><label>單局時間限制</label><select id="timeMode"><option value="off">不限時（玩到有人先走完指定圈數）</option><option value="on">開啟（時間到按分數排名）</option></select></div>
+      <div><label>時間（分鐘，1~180）</label><input id="timeMin" type="number" min="1" max="180" value="10"></div>
     </div>
   </div>
 
@@ -380,7 +380,7 @@ function startGame(){parseQText();if(!QUESTIONS.length){alert('請先載入至�
 let gc=getCounts();let n=gc[0],cc=gc[1],fc=gc[2];
 let needQ=n-cc-fc-1;if(needQ<1){alert('機會＋命運太多，至少要留1格題目');return}
 S.size=n;S.targetLap=+document.getElementById('targetLap').value||2;S.scoreOk=100;S.wrongMode=document.getElementById('wrongMode').value;S.wrongVal=+document.getElementById('wrongVal').value||5;
-S.timeOn=document.getElementById('timeMode').value==='on';S.timeLeft=Math.min(30,Math.max(1,+document.getElementById('timeMin').value||10))*60;S.timeUp=false;
+S.timeOn=document.getElementById('timeMode').value==='on';S.timeLeft=Math.min(180,Math.max(1,+document.getElementById('timeMin').value||10))*60;S.timeUp=false;
 S.qTimeOn=document.getElementById('qTimeMode').value==='on';S.qTimeSec=Math.min(120,Math.max(10,+document.getElementById('qTimeSec').value||30));
 let pc=Math.min(6,Math.max(1,+document.getElementById('pCount').value||2));let names=document.getElementById('pNames').value.split(/[,，]/).map(s=>s.trim());
 S.players=[];let poolE=shuffle(EMO_POOL.slice());for(let i=0;i<pc;i++)S.players.push({name:names[i]||('第'+(i+1)+'組'),emo:poolE[i%poolE.length],pos:0,score:0,lap:0});
@@ -926,6 +926,97 @@ flipCard=function(){
   },900);
 };
 loadSample();
+/* ===== 2026-11 調整：作答暫停計時、隨時顯示目前玩家、空白鍵連按兩下／滑鼠左右鍵同按擲骰 ===== */
+(function(){
+  const css=document.createElement('style');
+  css.textContent=
+    '#turnTag{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:80;display:none;align-items:center;gap:8px;'+
+    'background:#fff7d6;border:3px solid #f0b429;color:#5a3b00;font-size:26px;font-weight:900;padding:8px 24px;border-radius:999px;'+
+    'box-shadow:0 6px 18px #0004;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;pointer-events:none}'+
+    'body.turnTagOn #turnTag{display:flex}'+
+    'body.turnTagOn .modal.on{padding-top:78px}'+
+    '#qPauseBtn{white-space:nowrap}'+
+    '#qModal.qPaused #qTimer{color:#1d4ed8!important}'+
+    '@media(max-width:760px){#turnTag{font-size:20px;padding:6px 16px}body.turnTagOn .modal.on{padding-top:64px}}';
+  document.head.append(css);
+
+  /* ---------- 隨時顯示目前是哪位玩家的回合 ---------- */
+  const tag=document.createElement('div');tag.id='turnTag';tag.setAttribute('role','status');document.body.append(tag);
+  function gameOn(){return document.getElementById('game').classList.contains('on')&&S.board.length&&!S.over&&S.orderDone&&S.players.length}
+  function syncTurnTag(){
+    const openModal=document.querySelector('.modal.on:not(#orderModal)');
+    const on=!!(gameOn()&&openModal);
+    if(on){const p=S.players[S.cur];if(p){const t='👉 現在輪到：'+p.emo+' '+p.name;if(tag.textContent!==t)tag.textContent=t}}
+    if(document.body.classList.contains('turnTagOn')!==on)document.body.classList.toggle('turnTagOn',on);
+  }
+  new MutationObserver(syncTurnTag).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+  setInterval(syncTurnTag,400);
+
+  /* ---------- 作答期間的暫停計時按鍵 ---------- */
+  const qModal=document.getElementById('qModal');
+  const row=document.getElementById('qSubmit').parentElement;
+  const qp=document.createElement('button');qp.className='btn2';qp.id='qPauseBtn';qp.type='button';row.append(qp);
+  function qOpen(){return qModal.classList.contains('on')}
+  function syncQPause(){
+    qp.hidden=!(S.qTimeOn||S.timeOn);
+    qp.textContent=S.paused?'▶ 繼續計時':'⏸ 暫停計時';
+    qModal.classList.toggle('qPaused',!!S.paused);
+    const el=document.getElementById('qTimer');
+    if(!qOpen())return;
+    if(S.paused)el.textContent=S.qTimeOn?'⏸ 計時已暫停（作答剩餘 '+S.qTimeLeft+' 秒）':'⏸ 計時已暫停';
+    else if(S.qTimeOn)renderQTimer();
+    else el.textContent='';
+  }
+  function setPaused(on){
+    if(!!S.paused===on)return;
+    S.paused=on;
+    document.getElementById('pauseBtn').textContent=S.paused?'▶ 繼續':'⏸ 暫停';
+    if(S.paused)stopBgm();else startBgm();
+    syncQPause();
+  }
+  qp.onclick=()=>{if(S.over)return;setPaused(!S.paused)};
+  const baseToggle=togglePause;togglePause=function(){baseToggle.apply(this,arguments);syncQPause()};
+  const baseOpenQ2=openQ;openQ=function(){baseOpenQ2.apply(this,arguments);syncQPause()};
+  // 暫停中直接送出或跳過時，自動恢復計時，遊戲才能繼續進行。
+  const baseSubmit=submitQ;submitQ=function(){if(S.paused&&qOpen()&&S.currentSel&&S.currentSel.size)setPaused(false);return baseSubmit.apply(this,arguments)};
+  const baseCloseQ=closeQ;closeQ=function(){if(S.paused&&qOpen())setPaused(false);return baseCloseQ.apply(this,arguments)};
+
+  /* ---------- 空白鍵連按兩下／滑鼠左右鍵同時按 → 擲骰子／轉轉盤 ---------- */
+  function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))}
+  function visible(el){return el&&!el.hidden&&el.offsetParent!==null}
+  function triggerRoll(){
+    if(!gameOn()||S.paused)return false;
+    const draw=document.getElementById('recoveryDraw');
+    if(document.getElementById('recoveryModal').classList.contains('on')){
+      if(visible(draw)&&!draw.disabled){draw.click();return true}
+      return false;
+    }
+    if(document.querySelector('.modal.on'))return false;
+    const btn=document.getElementById('rollBtn');
+    if(btn&&!btn.disabled){btn.click();return true}
+    return false;
+  }
+  let lastSpace=0;
+  function isSpace(e){return e.code==='Space'||e.key===' '||e.key==='Spacebar'}
+  document.addEventListener('keydown',e=>{
+    if(!isSpace(e)||typing(e.target)||!gameOn())return;
+    e.preventDefault();
+    if(e.repeat)return;
+    const now=performance.now();
+    if(now-lastSpace<=600){lastSpace=0;triggerRoll()}else lastSpace=now;
+  },true);
+  document.addEventListener('keyup',e=>{if(isSpace(e)&&!typing(e.target)&&gameOn())e.preventDefault()},true);
+
+  let chordAt=0;
+  document.addEventListener('mousedown',e=>{
+    if(!gameOn())return;
+    if((e.buttons&3)===3){e.preventDefault();triggerRoll();chordAt=performance.now()}
+  },true);
+  // 同時按左右鍵後放開，不要再觸發游標下按鈕的點擊，也不要跳出右鍵選單。
+  document.addEventListener('click',e=>{if(performance.now()-chordAt<800){e.preventDefault();e.stopPropagation()}},true);
+  document.addEventListener('auxclick',e=>{if(performance.now()-chordAt<800){e.preventDefault();e.stopPropagation()}},true);
+  document.addEventListener('contextmenu',e=>{if(gameOn())e.preventDefault()},true);
+})();
 </script>
 </body>
 </html>
