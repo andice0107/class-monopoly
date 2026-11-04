@@ -1019,8 +1019,8 @@ loadSample();
 
   /* ---------- 送出答案後：其他玩家額外加分 ---------- */
   css.textContent+=
-    '#bonusAnswer{font-size:24px;font-weight:900;color:#08734d;background:#e6f6ee;border-radius:12px;padding:10px 14px;margin:8px 0;text-align:center}'+
-    '#bonusMain{font-size:19px;text-align:center;margin-bottom:6px}'+
+    '#bonusAnswer{font-size:24px;font-weight:900;color:#1e3a8a;background:#e0eaff;border:2px solid #93b4f5;border-radius:12px;padding:10px 14px;margin:8px 0;text-align:center}'+
+    '#bonusMain{font-size:26px;font-weight:900;text-align:center;margin:4px 0 8px;padding:12px 14px;border-radius:14px;color:#fff}'+'#bonusMain.ok{background:#15803d;box-shadow:0 4px 0 #0f5f2d}'+'#bonusMain.bad{background:#dc2626;box-shadow:0 4px 0 #a51c1c}'+
     '#bonusList{display:grid;gap:10px;margin-top:8px}'+
     '.bonusRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}'+
     '.bonusRow .bonusToggle{flex:1 1 260px;text-align:left;font-size:21px;padding:12px 16px;min-height:56px}'+
@@ -1034,10 +1034,10 @@ loadSample();
     '<p class="small" id="bonusHelp" style="text-align:center;margin:4px 0"></p><div id="bonusList"></div>'+
     '<div style="display:flex;justify-content:center;margin-top:16px"><button class="btn" id="bonusOk">確認加分，繼續遊戲</button></div></div>';
   document.body.append(bonusModal);
-  function openBonus(answer,mainText,done){
+  function openBonus(answer,mainText,done,mainOk){
     const version=gameVersion,cap=Math.max(0,S.scoreOk|0),def=Math.min(50,cap);
-    document.getElementById('bonusAnswer').textContent='✅ 正確答案：'+answer;
-    document.getElementById('bonusMain').textContent=mainText;
+    document.getElementById('bonusAnswer').textContent='📘 正確答案：'+answer;
+    const bm=document.getElementById('bonusMain');bm.textContent=mainText;bm.className=mainOk?'ok':'bad';
     document.getElementById('bonusHelp').textContent='其他玩家有答對的，請點自己的名字打勾。每人預設加 '+def+' 分，可調整 0～'+cap+' 分。';
     const list=document.getElementById('bonusList');list.innerHTML='';
     const rows=[];
@@ -1078,7 +1078,7 @@ loadSample();
     try{submitBeforeBonus.apply(this,arguments)}finally{gameDelay=realDelay}
     if(!held)return;
     if(S.players.length<2||S.over){realDelay(held[0],held[1]);return}
-    openBonus(answer,p.emo+' '+p.name+(ok?' 答對了，+'+S.scoreOk+' 分！':' 這題沒答對。'),()=>realDelay(held[0],held[1]));
+    openBonus(answer,(ok?'⭕ ':'❌ ')+'主答者 '+p.emo+' '+p.name+(ok?' 答對了！+'+S.scoreOk+' 分':' 答錯了'),()=>realDelay(held[0],held[1]),ok);
   };
 
   /* ---------- 設定頁預設值：醫院／監獄、商店各一格，答錯倒退 1 格，可付分提早離開 ---------- */
